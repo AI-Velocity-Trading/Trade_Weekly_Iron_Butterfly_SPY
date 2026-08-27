@@ -34,7 +34,7 @@ parameter sweep.
 | File | Purpose |
 |---|---|
 | [weekly_iron_butterfly_spy_backtest_dynamic.py](weekly_iron_butterfly_spy_backtest_dynamic.py) | Backtest engine. Replays historical SPY price bars + Alpaca OPRA options data to simulate the strategy and report P&L, win rate, drawdown, Sharpe, etc. Includes an `--optimize` mode that grid-searches entry window, exit cutoff, breach fraction, and filter thresholds. |
-| [weekly_trading_spy.py](weekly_trading_spy.py) | Live-trading counterpart. Runs the same dynamic entry/exit logic against a live 1-minute price feed and places real orders via Alpaca on a single hardcoded account. |
+| [weekly_trading_spy.py](weekly_trading_spy.py) | Live-trading counterpart. Runs the same dynamic entry/exit logic against Alpaca's live price feed and places real orders via Alpaca on a single account. |
 | [get_5yrs_spy_bars.py](get_5yrs_spy_bars.py) | One-off/refresh utility that fetches 5 years of SPY 1-minute SIP bars (4:00 AM–8:00 PM ET) from Alpaca and writes them to `underlying-tickers/SPY.csv`, the format the backtest expects. |
 | [underlying-tickers/SPY.csv](underlying-tickers/SPY.csv) | Historical 1-min SPY bars (`date_et,time_et,open,high,low,close`) used by the backtest. |
 
@@ -95,6 +95,8 @@ or local CSV feed) and trades a single account. It loads Alpaca DATA and
 TRADING API keys (`apiDataKey`, `apiDataSecret`, `apiTradeKey`,
 `apiTradeSecret`) from `.env`, prompting for and saving any that are
 missing, and asks interactively at startup for the number of option
-contracts to trade per leg. No Supabase account is required. See the module
-docstring in [weekly_trading_spy.py](weekly_trading_spy.py) for full
-configuration details.
+contracts to trade per leg. No Supabase account is required. Its own entry
+window (9:35–10:30 ET) and exit cutoff (15:40 ET) constants are independent
+of the backtest's tuned defaults above. See the module docstring in
+[weekly_trading_spy.py](weekly_trading_spy.py) for full configuration
+details.

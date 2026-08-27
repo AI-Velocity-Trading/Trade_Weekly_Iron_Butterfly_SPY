@@ -5,14 +5,11 @@ weekly_trading_spy.py  —  SPY Iron Butterfly, single-account LIVE dynamic trad
 Live-trading counterpart of weekly_iron_butterfly_spy_backtest_dynamic.py.
 
 Same 4-leg iron butterfly structure as the weekly_iron_butterfly_* family
-(longPut=ATM-wing, shortPut=ATM, shortCall=ATM, longCall=ATM+wing), and the
-same single-hardcoded-account execution pattern used by daily_trading_spy.py
-(itself derived from trading-strategies/daily_iron_butterfly_spy_test.py) —
-but:
+(longPut=ATM-wing, shortPut=ATM, shortCall=ATM, longCall=ATM+wing), but:
 
-  1. Trades ONLY a single account, configured via .env + an interactive
-     prompt at startup (no per-account threading / no multi-subscriber
-     lookup).
+  1. Trades ONLY a single account, configured via .env plus an interactive
+     prompt at startup (no multi-account threading / no account lookup
+     service of any kind).
   2. Opens ONLY on Monday and closes ONLY on Thursday (weekly cadence),
      using DYNAMIC entry/exit timing ported from the backtest's
      find_optimal_entry() / find_dynamic_exit_week() instead of a fixed
@@ -735,7 +732,7 @@ def get_spy_prev_week_stats() -> dict | None:
 # ── Dynamic entry timing (causal live approximation of find_optimal_entry) ───
 def wait_for_dynamic_entry() -> None:
     """
-    Polls the live CSV price feed from ENTRY_SEARCH_START through
+    Polls Alpaca's live price from ENTRY_SEARCH_START through
     ENTRY_SEARCH_END on Monday, tracking the trailing ENTRY_SETTLE_WINDOW_MIN-
     minute high/low range minute-by-minute (mirrors find_optimal_entry() in
     weekly_iron_butterfly_spy_backtest_dynamic.py). Unlike the backtest, which
@@ -783,7 +780,7 @@ def wait_for_dynamic_entry() -> None:
 
 # ── Dynamic exit (wing-breach detection) ──────────────────────────────────────
 def check_underlying_breach(atm: float) -> bool:
-    """True if the live CSV price has moved BREACH_FRACTION * WING_WIDTH away from atm."""
+    """True if Alpaca's live price has moved BREACH_FRACTION * WING_WIDTH away from atm."""
     price = get_spy_price()
     if price is None:
         return False
