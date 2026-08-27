@@ -90,9 +90,9 @@ Backtest result over 2021-08-26 → 2026-08-25: 97 trades, 59.8% win rate,
 
 ## Live trading
 
-`weekly_trading_spy.py` mirrors the backtest's dynamic timing but reads live
-prices from a local CSV feed (written by a separate websocket subscriber) and
-trades a single hardcoded Alpaca account. It loads Alpaca OAuth/data
-credentials from Supabase at startup (`SUPABASE_URL` / `SUPABASE_KEY` in
-`.env`). See the module docstring in
+`weekly_trading_spy.py` mirrors the backtest's dynamic timing but polls
+prices directly from Alpaca's latest-trade endpoint (no websocket subscriber
+or local CSV feed) and trades a single hardcoded Alpaca account. It loads
+Alpaca OAuth/data credentials from Supabase at startup (`SUPABASE_URL` /
+`SUPABASE_KEY` in `.env`). See the module docstring in
 [weekly_trading_spy.py](weekly_trading_spy.py) for full configuration details.

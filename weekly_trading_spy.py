@@ -16,12 +16,9 @@ but:
      using DYNAMIC entry/exit timing ported from the backtest's
      find_optimal_entry() / find_dynamic_exit_week() instead of a fixed
      09:40/15:45 clock schedule.
-  3. Reads live 1-minute underlying prices from a local CSV feed instead of
-     Alpaca stock snapshots/bars — this script is designed to run on the
-     MGT4 host, where a websocket subscriber (see
-     websockets/proxy_ticker_tracker.py) continuously appends
-     <TICKER>_<session-date>.csv rows (columns: timestamp, price) under
-     CSV_PRICE_ROOT.
+  3. Reads live underlying prices by polling Alpaca's latest-trade endpoint
+     directly (no websocket subscriber, no local CSV feed) and aggregates
+     the polled ticks into in-memory per-minute OHLC bars.
 
 Structure:
   longPut   = ATM - wingWidth   (buy)
@@ -32,17 +29,17 @@ Structure:
 Parameters:  wingWidth=10, qty=1 per leg  (wingWidth matches weekly_iron_butterfly_spy_backtest_dynamic.py; qty is a fixed live-trading override)
 
 Entry (dynamic, Monday only):
-  Polls the live CSV price feed 09:35–10:30 ET on Monday, tracking the
-  trailing 20-minute high/low range minute-by-minute. Since a live process
-  cannot act on a minute already in the past (unlike the backtest, which
-  sees the whole window in hindsight), it commits to entering once the
-  trailing range has gone ENTRY_PATIENCE_MIN consecutive minutes without
-  setting a new low (the quiet period appears to have passed), or the
-  window times out at 10:30 ET — whichever comes first.
+  Polls Alpaca's latest-trade price for SPY 09:35–10:30 ET on Monday,
+  tracking the trailing 20-minute high/low range minute-by-minute. Since a
+  live process cannot act on a minute already in the past (unlike the
+  backtest, which sees the whole window in hindsight), it commits to
+  entering once the trailing range has gone ENTRY_PATIENCE_MIN consecutive
+  minutes without setting a new low (the quiet period appears to have
+  passed), or the window times out at 10:30 ET — whichever comes first.
 
 Exit (dynamic, Monday–Thursday):
-  Continuously polls the live CSV feed after entry (all week); exits
-  immediately ("underlying_breach") once price moves BREACH_FRACTION *
+  Continuously polls Alpaca's latest-trade price after entry (all week);
+  exits immediately ("underlying_breach") once price moves BREACH_FRACTION *
   wingWidth away from the ATM strike. Falls back to a 15:40 ET Thursday
   scheduled close if no breach occurs by then. Also auto-closes on:
   - P&L ≥ +90% of max profit  (MAX_PROFIT_90%)
@@ -67,10 +64,9 @@ Step 2 — Market-data keys:
 
 Live price feed
 ---------------
-CSV_PRICE_ROOT/<TICKER>_<session-date>.csv  (columns: timestamp, price)
-CSV_PRICE_ROOT defaults to the MGT4 path but can be overridden with the
-CSV_PRICE_ROOT environment variable for local/dev testing:
-  /home/techyogi/dsavage/python_trading/websockets/csv-files
+Polled directly from Alpaca's /v2/stocks/{TICKER}/trades/latest endpoint
+using the market-data keys above — no websocket subscriber or local CSV
+feed required.
 """
 
 from __future__ import annotations
@@ -148,13 +144,7 @@ ENTRY_SETTLE_WINDOW_MIN = 20
 ENTRY_PATIENCE_MIN = 3     # consecutive non-improving minutes before entering early
 EXIT_DEFAULT_HOUR, EXIT_DEFAULT_MIN = 15, 40
 BREACH_FRACTION = 1.0
-DYNAMIC_EXIT_POLL_SEC = 20  # how often to poll the CSV feed for wing-breach checks
-
-# ── Live CSV price feed (MGT4) ────────────────────────────────────────────────
-CSV_PRICE_ROOT = Path(os.environ.get(
-    "CSV_PRICE_ROOT",
-    "/home/techyogi/dsavage/python_trading/websockets/csv-files",
-))
+DYNAMIC_EXIT_POLL_SEC = 20  # how often to poll Alpaca for wing-breach checks
 
 # Auto-exit thresholds (fraction of max profit)
 PROFIT_TARGET_PCT = 0.90   # close at +90%
@@ -691,34 +681,27 @@ def _log_retry_heartbeat(retry: int) -> None:
         retry, elapsed_m, elapsed_s, remain_m, remain_s,
     )
 
-# ── Live CSV price feed (MGT4) ────────────────────────────────────────────────
-def _price_csv_path(day: date) -> Path:
-    return CSV_PRICE_ROOT / f"{TICKER}_{day.isoformat()}.csv"
+# ── Live price feed (direct Alpaca polling, no websocket/CSV) ────────────────
+_tick_lock = threading.Lock()
+_session_ticks: dict[date, list[tuple[datetime, float]]] = {}
+
+def _fetch_latest_trade_price() -> float | None:
+    """Fetch SPY's latest trade price directly from Alpaca's data API."""
+    url = f"{DATA_BASE}/v2/stocks/{TICKER}/trades/latest"
+    headers = {"APCA-API-KEY-ID": DATA_KEY, "APCA-API-SECRET-KEY": DATA_SECRET}
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        price = resp.json().get("trade", {}).get("p")
+        return float(price) if price is not None else None
+    except Exception as exc:
+        log.error("Failed fetching latest trade price for %s: %s", TICKER, exc)
+        return None
 
 def read_session_ticks(day: date) -> list[tuple[datetime, float]]:
-    """Read all (timestamp, price) ticks written so far for the session date."""
-    path = _price_csv_path(day)
-    ticks: list[tuple[datetime, float]] = []
-    if not path.exists():
-        return ticks
-    try:
-        with path.open(newline="") as f:
-            for row in csv.DictReader(f):
-                try:
-                    ts = datetime.fromisoformat(row["timestamp"])
-                    price = float(row["price"])
-                except (KeyError, ValueError, TypeError):
-                    continue
-                if ts.tzinfo is None:
-                    ts = ts.replace(tzinfo=ET)
-                else:
-                    ts = ts.astimezone(ET)
-                ticks.append((ts, price))
-    except Exception as exc:
-        log.error("Failed reading live price CSV %s: %s", path, exc)
-        return []
-    ticks.sort(key=lambda t: t[0])
-    return ticks
+    """Return all (timestamp, price) ticks polled so far for the session date."""
+    with _tick_lock:
+        return list(_session_ticks.get(day, []))
 
 def build_minute_bars(ticks: list[tuple[datetime, float]]) -> dict[tuple[int, int], dict]:
     """Aggregate raw (timestamp, price) ticks into per-minute OHLC bars."""
@@ -735,13 +718,15 @@ def build_minute_bars(ticks: list[tuple[datetime, float]]) -> dict[tuple[int, in
     return bars
 
 def get_spy_price() -> float | None:
-    """Fetch SPY's latest live tick price from the local CSV price feed (MGT4)."""
-    ticks = read_session_ticks(today_et())
-    if not ticks:
-        log.error("No live price ticks found for %s in %s", TICKER, _price_csv_path(today_et()))
+    """Poll SPY's latest trade price directly from Alpaca and record the tick in-memory."""
+    price = _fetch_latest_trade_price()
+    if price is None:
+        log.error("No live trade price available for %s from Alpaca.", TICKER)
         return None
-    ts, price = ticks[-1]
-    log.info("%s live CSV price: $%.2f  (tick @ %s ET)", TICKER, price, ts.strftime("%H:%M:%S"))
+    ts = now_et()
+    with _tick_lock:
+        _session_ticks.setdefault(ts.date(), []).append((ts, price))
+    log.info("%s live price: $%.2f  (polled @ %s ET)", TICKER, price, ts.strftime("%H:%M:%S"))
     return price
 
 def get_spy_prev_week_stats() -> dict | None:
@@ -809,6 +794,7 @@ def wait_for_dynamic_entry() -> None:
         if t >= ENTRY_SEARCH_END:
             log.info("Dynamic entry window elapsed — entering at %02d:%02d ET.", *t)
             return
+        get_spy_price()  # poll Alpaca now to record a tick for this minute's bar
         ticks = read_session_ticks(now.date())
         bars  = build_minute_bars(ticks)
         window = sorted((k, v) for k, v in bars.items() if ENTRY_SEARCH_START <= k < ENTRY_SEARCH_END)
@@ -1654,7 +1640,7 @@ def _reset_weekly():
 def startup_diagnostics():
     """
     Run immediately on launch. Verifies:
-      1. SPY live CSV price feed
+      1. SPY live price poll (direct Alpaca latest-trade)
       2. OCC symbol generation for this week's Friday expiry
       3. Options snapshot API reachability
       4. Leg prices + greeks
@@ -1685,11 +1671,11 @@ def startup_diagnostics():
         log.error("  ✗ FAIL — auth check exception: %s", exc)
         failures.append(f"Auth check exception: {exc}")
 
-    log.info("[1/6] Fetching SPY live CSV price …")
+    log.info("[1/6] Polling SPY live price from Alpaca …")
     spy_price = get_spy_price()
     if spy_price is None:
-        log.error("  ✗ FAIL — could not read SPY price from %s", _price_csv_path(today_et()))
-        failures.append("SPY live CSV price fetch")
+        log.error("  ✗ FAIL — could not fetch SPY latest-trade price from Alpaca")
+        failures.append("SPY live price fetch")
         spy_price = 600.0
         log.warning("  Using dummy SPY=%.2f to continue diagnostics", spy_price)
     else:
@@ -2077,7 +2063,7 @@ def main():
 
     log.info("Starting weekly_trading_spy.py …")
     log.info("Accounts loaded: %d", len(accounts))
-    log.info("Live price feed root: %s", CSV_PRICE_ROOT)
+    log.info("Live price feed: direct Alpaca latest-trade polling")
 
     if args.dry_run:
         log.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
