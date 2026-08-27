@@ -27,7 +27,7 @@ Instead of trading on a fixed clock schedule, entry and exit timing are
 
 Trade filters can skip a week entirely (e.g. Monday gap too large, prior-week
 range too wide, credit too rich) — current defaults were tuned via a 5-year
-parameter sweep (see [SESSION_NOTES.md](SESSION_NOTES.md)).
+parameter sweep.
 
 ## Files
 
@@ -37,7 +37,6 @@ parameter sweep (see [SESSION_NOTES.md](SESSION_NOTES.md)).
 | [weekly_trading_spy.py](weekly_trading_spy.py) | Live-trading counterpart. Runs the same dynamic entry/exit logic against a live 1-minute price feed and places real orders via Alpaca on a single hardcoded account. |
 | [get_5yrs_spy_bars.py](get_5yrs_spy_bars.py) | One-off/refresh utility that fetches 5 years of SPY 1-minute SIP bars (4:00 AM–8:00 PM ET) from Alpaca and writes them to `underlying-tickers/SPY.csv`, the format the backtest expects. |
 | [underlying-tickers/SPY.csv](underlying-tickers/SPY.csv) | Historical 1-min SPY bars (`date_et,time_et,open,high,low,close`) used by the backtest. |
-| [SESSION_NOTES.md](SESSION_NOTES.md) | Running log of setup steps, bug fixes, optimizer runs, and tuned parameter history. |
 
 ## Setup
 
@@ -78,8 +77,6 @@ Options pricing (Alpaca OPRA daily/1-min bars) is fetched live from Alpaca —
 only the underlying SPY price history needs to be local.
 
 ## Current tuned parameters
-
-(See [SESSION_NOTES.md](SESSION_NOTES.md) for the full 5-year optimizer sweep results.)
 
 - Entry search window: 9:35–10:00 ET, 5-minute settle window
 - Exit cutoff: Thursday 15:00 ET
