@@ -10,8 +10,9 @@ same single-hardcoded-account execution pattern used by daily_trading_spy.py
 (itself derived from trading-strategies/daily_iron_butterfly_spy_test.py) —
 but:
 
-  1. Trades ONLY the hardcoded account ALPACA_ACCOUNT below (no per-account
-     threading / no user_strategies multi-subscriber lookup).
+  1. Trades ONLY a single account, configured via .env + an interactive
+     prompt at startup (no per-account threading / no multi-subscriber
+     lookup).
   2. Opens ONLY on Monday and closes ONLY on Thursday (weekly cadence),
      using DYNAMIC entry/exit timing ported from the backtest's
      find_optimal_entry() / find_dynamic_exit_week() instead of a fixed
@@ -26,7 +27,8 @@ Structure:
   shortCall = ATM               (sell)   ←
   longCall  = ATM + wingWidth   (buy)
 
-Parameters:  wingWidth=10, qty=1 per leg  (wingWidth matches weekly_iron_butterfly_spy_backtest_dynamic.py; qty is a fixed live-trading override)
+Parameters:  wingWidth=10 (matches weekly_iron_butterfly_spy_backtest_dynamic.py);
+             qty is prompted for interactively at startup.
 
 Entry (dynamic, Monday only):
   Polls Alpaca's latest-trade price for SPY 09:35–10:30 ET on Monday,
@@ -47,26 +49,19 @@ Exit (dynamic, Monday–Thursday):
 
 Environment
 -----------
-Reads Supabase credentials (SUPABASE_URL, SUPABASE_KEY) from the .env file
-in the project root directory.
+Reads Alpaca DATA and TRADING API keys from the .env file in the project
+root directory (apiDataKey, apiDataSecret, apiTradeKey, apiTradeSecret). Any
+key missing from .env is requested interactively at startup and appended to
+the file so future runs don't ask again. No Supabase account required.
 
-Configuration (loaded from Supabase at startup)
-------------------------------------------------
-Step 1 — Alpaca OAuth token for the hardcoded ALPACA_ACCOUNT:
-  SELECT acctname, account, oauth_token, account_type
-  FROM alpaca_oauth_tokens
-  WHERE alpaca_account = 'PA38A272SBF7'
-
-Step 2 — Market-data keys:
-  SELECT apikey, apisecret
-  FROM data_key
-  WHERE name = 'DanSavage1P1'
+The number of option contracts to trade per leg is also requested
+interactively at startup (not persisted — set fresh each run).
 
 Live price feed
 ---------------
 Polled directly from Alpaca's /v2/stocks/{TICKER}/trades/latest endpoint
-using the market-data keys above — no websocket subscriber or local CSV
-feed required.
+using the DATA API keys above — no websocket subscriber or local CSV feed
+required.
 """
 
 from __future__ import annotations
@@ -88,7 +83,6 @@ from pathlib import Path
 
 import requests
 from dotenv import dotenv_values
-from supabase import create_client
 
 # ── Timezone sanity check ─────────────────────────────────────────────────────
 try:
@@ -118,10 +112,8 @@ ET = ZoneInfo("America/New_York")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 STRATEGY_LABEL = "SPY Weekly Iron Butterfly (Dynamic Live)"
-ALPACA_ACCOUNT = "PA38A272SBF7"   # alpaca_oauth_tokens.alpaca_account to trade in
 # Per-account credentials/state live in thread-local storage (_ctx).
 _ctx = threading.local()
-_sb = None  # Supabase client — set in load_account_from_supabase
 _all_shutdowns: list[threading.Event] = []
 
 PAPER_BASE = "https://paper-api.alpaca.markets"
@@ -180,13 +172,9 @@ MAX_PROB_MAX_LOSS: float | None = 0.32       # live-only safety cap on max-loss 
 MAX_PRIOR_RANGE_PCT: float | None = 0.030    # skip if prior-week (high-low)/close > 3%
 MAX_GAP_PCT: float | None = 0.008            # skip if Monday open gaps > 0.8% from prior Friday close
 
-# ── Supabase credential loading ────────────────────────────────────────────
-def load_account_from_supabase() -> list[dict]:
-    """
-    Return a single-item list with the account dict for the hardcoded
-    ALPACA_ACCOUNT, resolved directly from alpaca_oauth_tokens. Each dict has
-    keys: acctname, slot, oauth_token, data_key, data_secret, trade_base
-    """
+# ── .env credential loading (with interactive prompt for anything missing) ──
+def _locate_env_file() -> Path:
+    """Find an existing .env, or fall back to creating one next to this script."""
     _script = Path(__file__).resolve()
     _env_candidates = [
         Path(os.environ["ENV_FILE"]) if "ENV_FILE" in os.environ else None,
@@ -195,102 +183,78 @@ def load_account_from_supabase() -> list[dict]:
         _script.parent.parent / ".env",
         _script.parent.parent / (str(_script.parent.name) + ".env"),
     ]
-    _env_file = next((p for p in _env_candidates if p and p.exists()), None)
-    if _env_file is None:
-        log.critical("Could not locate .env file — set ENV_FILE env var to override.")
-        sys.exit(1)
-    log.info("Loading .env from %s", _env_file)
-    _env = dotenv_values(_env_file)
-    sb_url = _env.get("SUPABASE_URL", "")
-    sb_key = _env.get("SUPABASE_KEY", "")
+    existing = next((p for p in _env_candidates if p and p.exists()), None)
+    if existing is not None:
+        return existing
+    new_path = _script.parent / ".env"
+    new_path.touch()
+    log.info("No .env found — created %s", new_path)
+    return new_path
 
-    if not sb_url or not sb_key:
-        log.critical("Missing SUPABASE_URL / SUPABASE_KEY in .env -- aborting.")
-        sys.exit(1)
-
-    sb = create_client(sb_url, sb_key)
-    global _sb
-    _sb = sb
-
+def _prompt(label: str) -> str:
     try:
-        tok_resp = (
-            sb.table("alpaca_oauth_tokens")
-            .select("acctname, account, oauth_token, account_type")
-            .eq("alpaca_account", ALPACA_ACCOUNT)
-            .single()
-            .execute()
-        )
-        tok_row = tok_resp.data or {}
-    except Exception as exc:
-        log.critical("alpaca_oauth_tokens lookup failed for alpaca_account=%s: %s", ALPACA_ACCOUNT, exc)
-        sys.exit(1)
+        return input(label).strip()
+    except EOFError:
+        return ""
 
-    oauth_token = (tok_row.get("oauth_token") or "").strip()
-    if not oauth_token:
-        log.critical("No alpaca_oauth_tokens row with alpaca_account=%s -- aborting.", ALPACA_ACCOUNT)
-        sys.exit(1)
+def _get_or_prompt_secret(env: dict, env_file: Path, key: str, label: str, updated: dict) -> str:
+    """Return env[key] if set, else prompt for it and stage it for saving to .env."""
+    val = (env.get(key) or "").strip()
+    while not val:
+        val = _prompt(f"{label}: ").strip()
+        if not val:
+            log.warning("%s cannot be empty.", label)
+    if key not in env:
+        updated[key] = val
+    return val
 
-    acctname = (tok_row.get("acctname") or ALPACA_ACCOUNT).strip()
-    row_slot = (tok_row.get("account") or "P1").strip().upper()
-    is_live = (tok_row.get("account_type") or "").strip().lower() == "live"
-    if is_live and not ALLOW_LIVE_TRADING:
-        log.critical("alpaca_account=%s is LIVE and ALLOW_LIVE_TRADING is False — aborting "
-                     "rather than silently trading a live account.", ALPACA_ACCOUNT)
-        sys.exit(1)
+def load_credentials() -> dict:
+    """
+    Load Alpaca DATA + TRADING API keys from .env (prompting for and saving
+    any that are missing), and interactively prompt for the number of option
+    contracts to trade per leg. Returns a dict with keys: acctname, slot,
+    qty, data_key, data_secret, trade_key, trade_secret, trade_base.
+    """
+    env_file = _locate_env_file()
+    log.info("Using .env at %s", env_file)
+    env = dotenv_values(env_file)
 
-    try:
-        d_resp = (
-            sb.table("data_key")
-            .select("apikey, apisecret")
-            .eq("name", "DanSavage1P1")
-            .single()
-            .execute()
-        )
-        d_row = d_resp.data or {}
-    except Exception as exc:
-        log.critical("Failed to fetch data_key from Supabase: %s", exc)
-        sys.exit(1)
+    updated: dict[str, str] = {}
+    data_key    = _get_or_prompt_secret(env, env_file, "apiDataKey",    "Alpaca DATA API key",     updated)
+    data_secret = _get_or_prompt_secret(env, env_file, "apiDataSecret", "Alpaca DATA API secret",  updated)
+    trade_key   = _get_or_prompt_secret(env, env_file, "apiTradeKey",   "Alpaca TRADING API key",  updated)
+    trade_secret= _get_or_prompt_secret(env, env_file, "apiTradeSecret","Alpaca TRADING API secret", updated)
 
-    data_key    = (d_row.get("apikey")    or "").strip()
-    data_secret = (d_row.get("apisecret") or "").strip()
+    if updated:
+        with env_file.open("a") as f:
+            for k, v in updated.items():
+                f.write(f"{k}={v}\n")
+        log.info("Saved %d new credential(s) to %s: %s", len(updated), env_file, ", ".join(updated.keys()))
 
-    if not data_key or not data_secret:
-        log.critical("Missing apikey/apisecret in data_key table for name='DanSavage1P1' -- aborting.")
-        sys.exit(1)
+    qty_raw = _prompt(f"Number of {TICKER} option contracts to trade per leg [{QTY}]: ")
+    if not qty_raw:
+        qty = QTY
+    else:
+        try:
+            qty = int(qty_raw)
+            if qty <= 0:
+                raise ValueError
+        except ValueError:
+            log.critical("Invalid quantity %r — must be a positive integer. Aborting.", qty_raw)
+            sys.exit(1)
 
     account = {
-        "acctname":     acctname,
-        "slot":         row_slot,
-        "alpaca_account": ALPACA_ACCOUNT,
-        "qty":          QTY,
-        "oauth_token":  oauth_token,
+        "acctname":     "weekly_spy",
+        "slot":         "P1",
+        "qty":          qty,
         "data_key":     data_key,
         "data_secret":  data_secret,
-        "trade_base":   LIVE_BASE if is_live else PAPER_BASE,
+        "trade_key":    trade_key,
+        "trade_secret": trade_secret,
+        "trade_base":   LIVE_BASE if ALLOW_LIVE_TRADING else PAPER_BASE,
     }
-    log.info("Account resolved: acctname=%s  slot=%s  alpaca_account=%s",
-             acctname, row_slot, ALPACA_ACCOUNT)
-    return [account]
-
-# ── EV Supabase logger ────────────────────────────────────────────────────────
-def _log_ev_to_supabase(ev_data: dict, acctname: str, slot: str) -> None:
-    """Insert one EV snapshot row into the expected_value Supabase table."""
-    if _sb is None:
-        return
-    try:
-        _sb.table("expected_value").insert({
-            "script_name":   Path(__file__).name,
-            "acctname":      acctname,
-            "slot":          slot,
-            "net_credit":    round(ev_data["net_credit"],    4),
-            "max_profit":    round(ev_data["max_profit"],    2),
-            "max_loss":      round(ev_data["max_loss"],      2),
-            "prob_max_loss": round(ev_data["prob_max_loss"], 6),
-            "ev":            round(ev_data["ev"],            2),
-        }).execute()
-        log.debug("EV logged to Supabase  acctname=%s  slot=%s", acctname, slot)
-    except Exception as exc:
-        log.warning("EV Supabase log failed: %s", exc)
+    log.info("Credentials loaded — qty=%d  env=%s", qty, "LIVE" if ALLOW_LIVE_TRADING else "PAPER")
+    return account
 
 # ── CSV trade log ─────────────────────────────────────────────────────────────
 CSV_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "csv-files")
@@ -540,7 +504,8 @@ def _trade_headers() -> dict:
     return {
         "accept":              "application/json",
         "content-type":        "application/json",
-        "Authorization":       f"Bearer {_ctx.oauth_token}",
+        "apca-api-key-id":     _ctx.trade_key,
+        "apca-api-secret-key": _ctx.trade_secret,
     }
 
 def _data_headers() -> dict:
@@ -688,9 +653,8 @@ _session_ticks: dict[date, list[tuple[datetime, float]]] = {}
 def _fetch_latest_trade_price() -> float | None:
     """Fetch SPY's latest trade price directly from Alpaca's data API."""
     url = f"{DATA_BASE}/v2/stocks/{TICKER}/trades/latest"
-    headers = {"APCA-API-KEY-ID": DATA_KEY, "APCA-API-SECRET-KEY": DATA_SECRET}
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=_data_headers(), timeout=10)
         resp.raise_for_status()
         price = resp.json().get("trade", {}).get("p")
         return float(price) if price is not None else None
@@ -1280,7 +1244,6 @@ def open_butterfly():
                 return "skip_shutdown"
             continue
 
-        _log_ev_to_supabase(ev_data, _ctx.acct_name, _ctx.slot)
         net_credit   = ev_data["net_credit"]
         credit_pct   = net_credit / WING_WIDTH
 
@@ -1657,7 +1620,7 @@ def startup_diagnostics():
     try:
         r_auth = requests.get(f"{_ctx.trade_base}/v2/account", headers=_trade_headers(), timeout=10)
         if r_auth.status_code == 401:
-            log.error("  ✗ FAIL — 401 Unauthorized — check Alpaca credentials in Supabase")
+            log.error("  ✗ FAIL — 401 Unauthorized — check apiTradeKey/apiTradeSecret in .env")
             failures.append("Auth 401 — invalid paper trading credentials")
         elif r_auth.ok:
             acct = r_auth.json()
@@ -1772,7 +1735,6 @@ def startup_diagnostics():
         log.info("  prob_max_loss = %.2f%%", ev_data["prob_max_loss"] * 100)
         log.info("  EV            = %s$%.2f", ev_sign, ev_data["ev"])
         log.info("  %s", verdict)
-        _log_ev_to_supabase(ev_data, _ctx.acct_name, _ctx.slot)
 
     log.info("[6/6] Checking existing SPY options positions …")
     positions = get_spy_options_positions()
@@ -1810,7 +1772,8 @@ def _make_thread_target(fn, **kwargs):
     thread's _ctx, then calls fn(**kwargs).
     """
     snap = dict(
-        oauth_token    = _ctx.oauth_token,
+        trade_key      = _ctx.trade_key,
+        trade_secret   = _ctx.trade_secret,
         data_key       = _ctx.data_key,
         data_secret    = _ctx.data_secret,
         acct_name      = _ctx.acct_name,
@@ -1843,7 +1806,7 @@ def _seconds_until(hour: int, minute: int, tz=ET) -> float:
 
 def run_scheduler():
     log.info("Iron Butterfly SPY (Weekly Dynamic Live) scheduler started.")
-    log.info("Strategy: SPY butterfly  qty=%d  wingWidth=%d", QTY, WING_WIDTH)
+    log.info("Strategy: SPY butterfly  qty=%d  wingWidth=%d", _ctx.qty, WING_WIDTH)
     log.info("ENTRY search window: Monday only %02d:%02d–%02d:%02d ET (dynamic, quietest-minute)",
              *ENTRY_SEARCH_START, *ENTRY_SEARCH_END)
     log.info("EXIT: dynamic wing-breach (BREACH_FRACTION=%.2f) Mon–Thu, Thursday fallback %02d:%02d ET",
@@ -1962,7 +1925,8 @@ def run_scheduler():
 # ── Per-account thread entry ─────────────────────────────────────────────────
 def run_account(acct: dict) -> None:
     """Initialise per-thread state in _ctx and run the scheduler for one account."""
-    _ctx.oauth_token   = acct["oauth_token"]
+    _ctx.trade_key     = acct["trade_key"]
+    _ctx.trade_secret  = acct["trade_secret"]
     _ctx.data_key      = acct["data_key"]
     _ctx.data_secret   = acct["data_secret"]
     _ctx.acct_name     = acct["acctname"]
@@ -1980,7 +1944,7 @@ def run_account(acct: dict) -> None:
     _ctx.day_done       = threading.Event()
     _all_shutdowns.append(_ctx.shutdown)
     log.info("Account thread started — acctname=%s  slot=%s  key=%s…",
-             acct["acctname"], acct["slot"], acct["oauth_token"][:8])
+             acct["acctname"], acct["slot"], acct["trade_key"][:8])
 
     if _sentinel_exists(acct["acctname"], acct["slot"]):
         _ctx.trade_executed = True
@@ -2009,8 +1973,7 @@ def run_account(acct: dict) -> None:
 def main():
     import argparse
     parser = argparse.ArgumentParser(
-        description=f"Weekly Iron Butterfly SPY trader — dynamic live, single-account "
-                    f"(alpaca_account={ALPACA_ACCOUNT})"
+        description="Weekly Iron Butterfly SPY trader — dynamic live, single-account"
     )
     parser.add_argument("--dry-run",    action="store_true",
                         help="Show accounts and config that would run — no orders placed")
@@ -2037,19 +2000,16 @@ def main():
         FORCE_TRADE_NOW = True
         log.warning("--force: bypassing Monday-only + entry-window guards for this run.")
 
-    accounts = load_account_from_supabase()
-    if not accounts:
-        log.critical("No valid accounts loaded — aborting.")
-        sys.exit(1)
+    account = load_credentials()
 
-    first = accounts[0]
-    _ctx.oauth_token   = first["oauth_token"]
-    _ctx.data_key      = first["data_key"]
-    _ctx.data_secret   = first["data_secret"]
-    _ctx.acct_name     = first["acctname"]
-    _ctx.slot          = first["slot"]
-    _ctx.qty           = first["qty"]
-    _ctx.trade_base    = first["trade_base"]
+    _ctx.trade_key     = account["trade_key"]
+    _ctx.trade_secret  = account["trade_secret"]
+    _ctx.data_key      = account["data_key"]
+    _ctx.data_secret   = account["data_secret"]
+    _ctx.acct_name     = account["acctname"]
+    _ctx.slot          = account["slot"]
+    _ctx.qty           = account["qty"]
+    _ctx.trade_base    = account["trade_base"]
     _ctx.state_lock    = threading.Lock()
     _ctx.trade_executed = False
     _ctx.trade_history  = []
@@ -2062,7 +2022,6 @@ def main():
     _all_shutdowns.append(_ctx.shutdown)
 
     log.info("Starting weekly_trading_spy.py …")
-    log.info("Accounts loaded: %d", len(accounts))
     log.info("Live price feed: direct Alpaca latest-trade polling")
 
     if args.dry_run:
@@ -2074,19 +2033,15 @@ def main():
                  *ENTRY_SEARCH_START, *ENTRY_SEARCH_END)
         log.info("Exit     : dynamic wing-breach Mon-Thu, Thursday fallback %02d:%02d ET",
                  EXIT_DEFAULT_HOUR, EXIT_DEFAULT_MIN)
-        log.info("Accounts : %d", len(accounts))
-        for i, acct in enumerate(accounts, 1):
-            sentinel_today = _sentinel_exists(acct["acctname"], acct["slot"])
-            log.info(
-                "  [%d] acctname=%-20s  slot=%-6s  qty=%d option(s)  "
-                "env=%s  sentinel=%s",
-                i,
-                acct["acctname"],
-                acct["slot"],
-                acct["qty"],
-                "LIVE" if acct["trade_base"] == LIVE_BASE else "PAPER",
-                "EXISTS (will skip open this week)" if sentinel_today else "none",
-            )
+        sentinel_today = _sentinel_exists(account["acctname"], account["slot"])
+        log.info(
+            "Account  : acctname=%-20s  slot=%-6s  qty=%d option(s)  env=%s  sentinel=%s",
+            account["acctname"],
+            account["slot"],
+            account["qty"],
+            "LIVE" if account["trade_base"] == LIVE_BASE else "PAPER",
+            "EXISTS (will skip open this week)" if sentinel_today else "none",
+        )
         FILTER_CHECK_ONLY = True
         filter_result = open_butterfly()
         FILTER_CHECK_ONLY = False
@@ -2132,15 +2087,10 @@ def main():
         log.info("--close: done.")
         return
 
-    threads = [
-        threading.Thread(target=run_account, args=(acct,), daemon=True)
-        for acct in accounts
-    ]
-    for t in threads:
-        t.start()
+    t = threading.Thread(target=run_account, args=(account,), daemon=True)
+    t.start()
     try:
-        for t in threads:
-            t.join()
+        t.join()
     except KeyboardInterrupt:
         log.info("Interrupted.")
     finally:

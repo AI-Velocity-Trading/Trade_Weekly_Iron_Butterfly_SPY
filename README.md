@@ -45,7 +45,6 @@ parameter sweep (see [SESSION_NOTES.md](SESSION_NOTES.md)).
    ```
    pip install requests python-dotenv
    ```
-   (`weekly_trading_spy.py` additionally needs `supabase`.)
 2. Create a `.env` file in the project root with Alpaca API credentials:
    ```
    apiDataKey=...
@@ -53,6 +52,9 @@ parameter sweep (see [SESSION_NOTES.md](SESSION_NOTES.md)).
    apiKeyAIV011P=...      # optional — used only for the market calendar endpoint
    apiSecretAIV011P=...
    ```
+   (`weekly_trading_spy.py` uses its own `apiDataKey`/`apiDataSecret`/`apiTradeKey`/
+   `apiTradeSecret` entries — see [Live trading](#live-trading) below. Any missing
+   key is requested interactively at startup and saved to `.env` automatically.)
 3. Populate `underlying-tickers/SPY.csv` by running:
    ```
    python3 get_5yrs_spy_bars.py
@@ -92,7 +94,10 @@ Backtest result over 2021-08-26 → 2026-08-25: 97 trades, 59.8% win rate,
 
 `weekly_trading_spy.py` mirrors the backtest's dynamic timing but polls
 prices directly from Alpaca's latest-trade endpoint (no websocket subscriber
-or local CSV feed) and trades a single hardcoded Alpaca account. It loads
-Alpaca OAuth/data credentials from Supabase at startup (`SUPABASE_URL` /
-`SUPABASE_KEY` in `.env`). See the module docstring in
-[weekly_trading_spy.py](weekly_trading_spy.py) for full configuration details.
+or local CSV feed) and trades a single account. It loads Alpaca DATA and
+TRADING API keys (`apiDataKey`, `apiDataSecret`, `apiTradeKey`,
+`apiTradeSecret`) from `.env`, prompting for and saving any that are
+missing, and asks interactively at startup for the number of option
+contracts to trade per leg. No Supabase account is required. See the module
+docstring in [weekly_trading_spy.py](weekly_trading_spy.py) for full
+configuration details.
