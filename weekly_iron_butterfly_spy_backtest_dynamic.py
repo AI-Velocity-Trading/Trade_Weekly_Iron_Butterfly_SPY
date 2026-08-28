@@ -75,8 +75,25 @@ log = logging.getLogger("bt_spy_weekly_ibf_dyn")
 _ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 load_dotenv(_ENV_FILE)
 
-DATA_KEY    = os.getenv("apiDataKey",       "")
-DATA_SECRET = os.getenv("apiDataSecret",    "")
+def _prompt_and_save_secret(key: str, label: str) -> str:
+    """Return os.environ[key] if set, else prompt for it and append it to .env."""
+    val = os.getenv(key, "").strip()
+    while not val:
+        try:
+            val = input(f"{label}: ").strip()
+        except EOFError:
+            val = ""
+        if not val:
+            log.warning("%s cannot be empty.", label)
+    if not os.getenv(key, "").strip():
+        with open(_ENV_FILE, "a") as f:
+            f.write(f"{key}={val}\n")
+        log.info("Saved %s to %s", key, _ENV_FILE)
+        os.environ[key] = val
+    return val
+
+DATA_KEY    = os.getenv("apiDataKey",       "") or _prompt_and_save_secret("apiDataKey",    "Alpaca DATA API key")
+DATA_SECRET = os.getenv("apiDataSecret",    "") or _prompt_and_save_secret("apiDataSecret", "Alpaca DATA API secret")
 TRADE_KEY   = os.getenv("apiKeyAIV011P",    "")
 TRADE_SEC   = os.getenv("apiSecretAIV011P", "")
 
@@ -1435,10 +1452,6 @@ def main() -> None:
     parser.add_argument("--tolerance", type=float, default=10.0,
                          help="Optimizer: ± tolerance around --target-rate")
     args = parser.parse_args()
-
-    if not DATA_KEY or not DATA_SECRET:
-        log.error("apiDataKey / apiDataSecret missing in root .env — aborting.")
-        sys.exit(1)
 
     log.info("Backtest: SPY Weekly Iron Butterfly (dynamic entry/exit)  %s → %s", BT_START, BT_END)
     log.info("Wing=%d  Qty=%d  Entry=quietest Monday %02d:%02d-%02d:%02d ET minute  Exit=wing breach or Thu %d:%02d ET (latest)  PT=+90%%  SL=-80%%",
