@@ -99,13 +99,11 @@ Backtest result over 2021-08-26 → 2026-08-25: 97 trades, 59.8% win rate,
 
 `weekly_trading_spy.py` mirrors the backtest's dynamic timing but polls
 prices directly from Alpaca's latest-trade endpoint (no websocket subscriber
-or local CSV feed) and trades a single account. It only needs a single
-Alpaca TRADING API key/secret (`apiTradeKey`, `apiTradeSecret`) from `.env`
-— no separate DATA API key, since the trading key is also used for
-market-data requests. It prompts for and saves the trading key if missing,
-and asks interactively at startup for the number of option contracts to
-trade per leg. No Supabase account is required. Its own entry window
-(9:35–10:30 ET) and exit cutoff (15:40 ET) constants are independent
-of the backtest's tuned defaults above. See the module docstring in
+or local CSV feed) and trades a single account. It only requires an Alpaca
+TRADING API key/secret (`apiTradeKey`, `apiTradeSecret`) from `.env`. It
+prompts for and saves the trading key if missing, and asks interactively
+at startup for the number of option contracts to trade per leg. Its own
+entry window (9:35–10:30 ET) and exit cutoff (15:40 ET) constants are
+independent of the backtest's tuned defaults above. See the module docstring in
 [weekly_trading_spy.py](weekly_trading_spy.py) for full configuration
 details.
