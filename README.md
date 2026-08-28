@@ -37,6 +37,7 @@ parameter sweep.
 | [weekly_trading_spy.py](weekly_trading_spy.py) | Live-trading counterpart. Runs the same dynamic entry/exit logic against Alpaca's live price feed and places real orders via Alpaca on a single account. |
 | [get_5yrs_spy_bars.py](get_5yrs_spy_bars.py) | One-off/refresh utility that fetches 5 years of SPY 1-minute SIP bars (4:00 AM–8:00 PM ET) from Alpaca and writes them to `underlying-tickers/SPY.csv`, the format the backtest expects. Requires a SIP market-data subscription (see [Setup](#setup)). |
 | [underlying-tickers/SPY.csv](underlying-tickers/SPY.csv) | Historical 1-min SPY bars (`date_et,time_et,open,high,low,close`) used by the backtest. Already included in the repo, so the backtest can be run without a SIP data plan. |
+| [launch_weekly_trading.sh](launch_weekly_trading.sh) | Launcher used by an unattended/scheduled `launchd` job to start `weekly_trading_spy.py` detached (`nohup` + `disown`), logging to `logs/`. See [Unattended/scheduled launch](#unattendedscheduled-launch). |
 
 ## Setup
 
@@ -52,6 +53,11 @@ parameter sweep.
    `alpaca profile login --api-key` (stored under `~/.config/alpaca/profiles/`
    with restricted permissions) — future runs won't ask again. The same
    profile is used for both trading and market-data requests.
+
+   To trade a **different** Alpaca account without overwriting the default
+   `paper`/`live` profile, set `ALPACA_CLI_PROFILE=<name>` before running
+   `weekly_trading_spy.py` — it overrides which alpaca CLI profile is used
+   (registering it on first run, same as above, under that name instead).
 3. `underlying-tickers/SPY.csv` is already included in the repo with 5 years
    of SPY 1-min bars, so the backtest can be run as-is — **no SIP data plan
    is required** just to run the backtest.
@@ -106,3 +112,22 @@ Its own entry window (9:35–10:30 ET) and exit cutoff (15:40 ET) constants are
 independent of the backtest's tuned defaults above. See the module docstring in
 [weekly_trading_spy.py](weekly_trading_spy.py) for full configuration
 details.
+
+### Unattended/scheduled launch
+
+Since `weekly_trading_spy.py` runs as one long-lived process from Monday's
+open through Thursday's close, it can be started automatically via a macOS
+`launchd` LaunchAgent instead of running it by hand in a terminal:
+
+- [launch_weekly_trading.sh](launch_weekly_trading.sh) sets `ALPACA_CLI_PROFILE`,
+  starts the trader detached with `nohup ... & disown` (so it survives the
+  terminal/session closing) logging to `logs/`, then removes its own
+  LaunchAgent so a one-off scheduled run doesn't recur.
+- A `StartCalendarInterval` LaunchAgent plist (Month/Day/Hour/Minute, no
+  `Weekday`/`Year`) fires the launcher once on a specific date — e.g. Monday
+  market open — then self-unloads via the script above.
+- Because the trader keeps polling prices for days, the machine running it
+  must stay powered on and awake (not sleeping) for the whole Monday–Thursday
+  window; consider `caffeinate -s` or adjusting Energy Saver settings.
+- The unattended "number of contracts per leg" prompt receives no input in
+  this mode and silently falls back to `QTY = 1`.
