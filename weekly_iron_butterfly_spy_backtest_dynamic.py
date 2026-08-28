@@ -150,7 +150,7 @@ def _cli_get(path: str, query: str | None = None, use_data_api: bool = False) ->
 
 # Strategy parameters (mirrors weekly_iron_butterfly_spy.py)
 TICKER     = "SPY"
-QTY        = 40
+QTY        = 100
 WING_WIDTH = 10   # $10 wings (ATM ± 10)
 
 # Auto-exit thresholds (fraction of max profit — applied at the resolved exit bar)

@@ -122,7 +122,7 @@ DATA_BASE  = "https://data.alpaca.markets"
 
 # Strategy parameters (match weekly_iron_butterfly_spy_backtest_dynamic.py)
 TICKER     = "SPY"
-QTY        = 1
+QTY        = 100
 WING_WIDTH = 10
 
 # ── Weekly schedule — OPEN Monday only, CLOSE Thursday only ──────────────────
