@@ -185,6 +185,9 @@ def _require_alpaca_cli() -> str:
     return ALPACA_CLI_BIN
 
 def _cli_profile_name() -> str:
+    override = os.environ.get("ALPACA_CLI_PROFILE")
+    if override:
+        return override
     return "live" if ALLOW_LIVE_TRADING else "paper"
 
 def _prompt(label: str) -> str:
