@@ -54,14 +54,15 @@ from __future__ import annotations
 import os
 import sys
 import csv
+import json
 import math
 import argparse
 import itertools
 import logging
 from datetime import datetime, date, timedelta
 
-import requests
-from dotenv import load_dotenv
+import shutil
+import subprocess
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -71,34 +72,81 @@ logging.basicConfig(
 )
 log = logging.getLogger("bt_spy_weekly_ibf_dyn")
 
-# ── Config ────────────────────────────────────────────────────────────────────
-_ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-load_dotenv(_ENV_FILE)
-
-def _prompt_and_save_secret(key: str, label: str) -> str:
-    """Return os.environ[key] if set, else prompt for it and append it to .env."""
-    val = os.getenv(key, "").strip()
-    while not val:
-        try:
-            val = input(f"{label}: ").strip()
-        except EOFError:
-            val = ""
-        if not val:
-            log.warning("%s cannot be empty.", label)
-    if not os.getenv(key, "").strip():
-        with open(_ENV_FILE, "a") as f:
-            f.write(f"{key}={val}\n")
-        log.info("Saved %s to %s", key, _ENV_FILE)
-        os.environ[key] = val
-    return val
-
-DATA_KEY    = os.getenv("apiDataKey",       "") or _prompt_and_save_secret("apiDataKey",    "Alpaca DATA API key")
-DATA_SECRET = os.getenv("apiDataSecret",    "") or _prompt_and_save_secret("apiDataSecret", "Alpaca DATA API secret")
-TRADE_KEY   = os.getenv("apiKeyAIV011P",    "")
-TRADE_SEC   = os.getenv("apiSecretAIV011P", "")
-
+# ── Alpaca CLI (subprocess) — replaces direct HTTPS requests entirely ───────
 DATA_BASE  = "https://data.alpaca.markets"
 PAPER_BASE = "https://paper-api.alpaca.markets"
+
+ALPACA_CLI_BIN  = shutil.which("alpaca")
+ALPACA_PROFILE  = "paper"   # this backtest never places orders — data-only, paper profile
+
+def _require_alpaca_cli() -> str:
+    if not ALPACA_CLI_BIN:
+        log.critical(
+            "alpaca CLI not found on PATH — install it first:  "
+            "brew install alpacahq/tap/cli   (see https://github.com/alpacahq/cli)"
+        )
+        sys.exit(1)
+    return ALPACA_CLI_BIN
+
+def _cli_profile_exists(name: str) -> bool:
+    bin_path = _require_alpaca_cli()
+    proc = subprocess.run([bin_path, "profile", "list", "--quiet"],
+                           capture_output=True, text=True, timeout=15)
+    return proc.returncode == 0 and name in proc.stdout
+
+def ensure_alpaca_profile() -> None:
+    """Ensure the 'paper' alpaca CLI profile exists, prompting for API keys on first run."""
+    bin_path = _require_alpaca_cli()
+    if _cli_profile_exists(ALPACA_PROFILE):
+        return
+    log.info("No %r alpaca CLI profile found — one-time setup.", ALPACA_PROFILE)
+    key = secret = ""
+    while not key:
+        try:
+            key = input("Alpaca TRADING API key: ").strip()
+        except EOFError:
+            key = ""
+    while not secret:
+        try:
+            secret = input("Alpaca TRADING API secret: ").strip()
+        except EOFError:
+            secret = ""
+    proc = subprocess.run(
+        [bin_path, "profile", "login", "--api-key", "--key", key, "--secret", secret, "--name", ALPACA_PROFILE],
+        capture_output=True, text=True, timeout=30,
+    )
+    if proc.returncode != 0:
+        log.critical("alpaca profile login failed: %s", (proc.stderr or proc.stdout).strip())
+        sys.exit(1)
+    log.info("Alpaca CLI profile %r registered.", ALPACA_PROFILE)
+
+ensure_alpaca_profile()
+
+def _cli_get(path: str, query: str | None = None, use_data_api: bool = False) -> tuple[dict | list | None, int]:
+    """Run `alpaca api GET <path>` and return (json_body_or_None, http_status)."""
+    bin_path = _require_alpaca_cli()
+    args = [bin_path, "--profile", ALPACA_PROFILE, "--quiet", "api", "GET", path]
+    if query:
+        args += ["--query", query]
+    if use_data_api:
+        args.append("--use-data-api")
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=90)
+    except subprocess.TimeoutExpired:
+        return None, 599
+    out = proc.stdout.strip()
+    if proc.returncode == 0:
+        try:
+            return (json.loads(out) if out else {}), 200
+        except json.JSONDecodeError:
+            return {"raw": out}, 200
+    err_raw = (proc.stderr or out).strip()
+    try:
+        err = json.loads(err_raw)
+    except json.JSONDecodeError:
+        err = {"error": err_raw or "unknown alpaca CLI error"}
+    return err, int(err.get("status") or (401 if proc.returncode == 2 else 500))
+
 
 # Strategy parameters (mirrors weekly_iron_butterfly_spy.py)
 TICKER     = "SPY"
@@ -176,22 +224,13 @@ _NYSE_HOLIDAYS: frozenset[date] = frozenset([
 
 
 def get_trading_days(start: date, end: date) -> list[date]:
-    hdrs = {
-        "apca-api-key-id":     TRADE_KEY,
-        "apca-api-secret-key": TRADE_SEC,
-    }
-    try:
-        r = requests.get(
-            f"{PAPER_BASE}/v2/calendar",
-            headers=hdrs,
-            params={"start": start.isoformat(), "end": end.isoformat()},
-            timeout=15,
-        )
-        if r.ok:
-            return sorted(date.fromisoformat(d["date"]) for d in r.json())
-        log.warning("Calendar HTTP %d — falling back to Mon–Fri", r.status_code)
-    except Exception as exc:
-        log.warning("Calendar fetch failed: %s — falling back to Mon–Fri", exc)
+    calendar, status = _cli_get(
+        "/v2/calendar",
+        query=f"start={start.isoformat()}&end={end.isoformat()}",
+    )
+    if status == 200 and isinstance(calendar, list):
+        return sorted(date.fromisoformat(d["date"]) for d in calendar)
+    log.warning("Calendar fetch failed (status=%s): %s — falling back to Mon–Fri", status, calendar)
 
     days, cur = [], start
     while cur <= end:
@@ -312,10 +351,6 @@ def fetch_options_bars_batch_daily(
     symbols: list[str], start: date, end: date
 ) -> dict[str, dict[date, dict]]:
     """Daily OPRA option bars. Returns {unpadded_sym: {date: {open, close}}}."""
-    hdrs = {
-        "apca-api-key-id":     DATA_KEY,
-        "apca-api-secret-key": DATA_SECRET,
-    }
     result: dict[str, dict[date, dict]] = {s: {} for s in symbols}
     BATCH = 50
     for i in range(0, len(symbols), BATCH):
@@ -330,26 +365,20 @@ def fetch_options_bars_batch_daily(
             }
             if cursor:
                 params["page_token"] = cursor
-            try:
-                sym_qs  = "symbols=" + ",".join(batch)
-                qs      = "&".join(f"{k}={v}" for k, v in params.items())
-                req_url = f"{DATA_BASE}/v1beta1/options/bars?{sym_qs}&{qs}"
-                r = requests.get(req_url, headers=hdrs, timeout=30)
-                if not r.ok:
-                    log.warning("Options daily bars HTTP %d: %s", r.status_code, r.text[:200])
-                    break
-                data = r.json()
-            except Exception as exc:
-                log.warning("Options daily bars batch failed: %s", exc)
+            sym_qs = "symbols=" + ",".join(batch)
+            qs     = "&".join(f"{k}={v}" for k, v in params.items())
+            data, status = _cli_get("/v1beta1/options/bars", query=f"{sym_qs}&{qs}", use_data_api=True)
+            if status != 200:
+                log.warning("Options daily bars failed (status=%s): %s", status, data)
                 break
-            for sym, bar_list in data.get("bars", {}).items():
+            for sym, bar_list in (data or {}).get("bars", {}).items():
                 for b in bar_list:
                     d = date.fromisoformat(b["t"][:10])
                     result.setdefault(sym, {})[d] = {
                         "open":  float(b["o"]),
                         "close": float(b["c"]),
                     }
-            cursor = data.get("next_page_token")
+            cursor = (data or {}).get("next_page_token")
             if not cursor:
                 break
     found = sum(1 for v in result.values() if v)
@@ -365,10 +394,6 @@ def fetch_options_bars_batch_1min(
     Uses concurrent batch requests (ThreadPoolExecutor) to speed up fetching.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    hdrs = {
-        "apca-api-key-id":     DATA_KEY,
-        "apca-api-secret-key": DATA_SECRET,
-    }
     result: dict[str, dict[str, dict]] = {s: {} for s in symbols}
     BATCH = 10
 
@@ -384,25 +409,19 @@ def fetch_options_bars_batch_1min(
             }
             if cursor:
                 params["page_token"] = cursor
-            try:
-                sym_qs  = "symbols=" + ",".join(batch)
-                qs      = "&".join(f"{k}={v}" for k, v in params.items())
-                req_url = f"{DATA_BASE}/v1beta1/options/bars?{sym_qs}&{qs}"
-                r = requests.get(req_url, headers=hdrs, timeout=90)
-                if not r.ok:
-                    log.warning("Options 1-min bars HTTP %d: %s", r.status_code, r.text[:200])
-                    break
-                data = r.json()
-            except Exception as exc:
-                log.warning("Options 1-min bars batch failed: %s", exc)
+            sym_qs = "symbols=" + ",".join(batch)
+            qs     = "&".join(f"{k}={v}" for k, v in params.items())
+            data, status = _cli_get("/v1beta1/options/bars", query=f"{sym_qs}&{qs}", use_data_api=True)
+            if status != 200:
+                log.warning("Options 1-min bars failed (status=%s): %s", status, data)
                 break
-            for sym, bar_list in data.get("bars", {}).items():
+            for sym, bar_list in (data or {}).get("bars", {}).items():
                 for b in bar_list:
                     batch_result.setdefault(sym, {})[b["t"]] = {
                         "open":  float(b["o"]),
                         "close": float(b["c"]),
                     }
-            cursor = data.get("next_page_token")
+            cursor = (data or {}).get("next_page_token")
             if not cursor:
                 break
         return batch_result

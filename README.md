@@ -40,20 +40,18 @@ parameter sweep.
 
 ## Setup
 
-1. Install dependencies:
+1. Install the [Alpaca CLI](https://github.com/alpacahq/cli) — both scripts shell
+   out to it (via subprocess) for all trading and market-data calls instead of
+   making direct HTTPS requests:
    ```
-   pip install requests python-dotenv
+   brew install alpacahq/tap/cli
    ```
-2. Create a `.env` file in the project root with Alpaca API credentials:
-   ```
-   apiDataKey=...
-   apiDataSecret=...
-   apiKeyAIV011P=...      # optional — used only for the market calendar endpoint
-   apiSecretAIV011P=...
-   ```
-   (`weekly_trading_spy.py` only needs its own `apiTradeKey`/`apiTradeSecret`
-   entry — see [Live trading](#live-trading) below. If missing, it is
-   requested interactively at startup and saved to `.env` automatically.)
+2. No `.env` file or manual key entry is required up front. On first run,
+   if no `paper` alpaca CLI profile exists yet, each script prompts
+   interactively for your Alpaca API key/secret and registers them with
+   `alpaca profile login --api-key` (stored under `~/.config/alpaca/profiles/`
+   with restricted permissions) — future runs won't ask again. The same
+   profile is used for both trading and market-data requests.
 3. `underlying-tickers/SPY.csv` is already included in the repo with 5 years
    of SPY 1-min bars, so the backtest can be run as-is — **no SIP data plan
    is required** just to run the backtest.
@@ -98,12 +96,13 @@ Backtest result over 2021-08-26 → 2026-08-25: 97 trades, 59.8% win rate,
 ## Live trading
 
 `weekly_trading_spy.py` mirrors the backtest's dynamic timing but polls
-prices directly from Alpaca's latest-trade endpoint (no websocket subscriber
-or local CSV feed) and trades a single account. It only requires an Alpaca
-TRADING API key/secret (`apiTradeKey`, `apiTradeSecret`) from `.env`. It
-prompts for and saves the trading key if missing, and asks interactively
-at startup for the number of option contracts to trade per leg. Its own
-entry window (9:35–10:30 ET) and exit cutoff (15:40 ET) constants are
+prices directly from Alpaca via the CLI's `alpaca data latest-trade`
+passthrough (no websocket subscriber or local CSV feed) and trades a single
+account. It uses its own `paper`/`live` alpaca CLI profile (selected by the
+`ALLOW_LIVE_TRADING` constant), prompting for and registering the API
+key/secret on first run if that profile doesn't exist yet, and asks
+interactively at startup for the number of option contracts to trade per leg.
+Its own entry window (9:35–10:30 ET) and exit cutoff (15:40 ET) constants are
 independent of the backtest's tuned defaults above. See the module docstring in
 [weekly_trading_spy.py](weekly_trading_spy.py) for full configuration
 details.

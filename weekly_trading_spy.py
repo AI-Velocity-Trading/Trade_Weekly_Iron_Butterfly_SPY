@@ -46,19 +46,21 @@ Exit (dynamic, Monday–Thursday):
 
 Environment
 -----------
-Reads Alpaca's TRADING API key/secret from the .env file in the project
-root directory (apiTradeKey, apiTradeSecret). If missing, it is requested
-interactively at startup and appended to the file so future runs don't ask
-again. No Supabase account and no separate DATA API key are required — the
-trading key is also used for market-data requests.
+All Alpaca access (trading + market data) goes through the Alpaca CLI
+(https://github.com/alpacahq/cli — `brew install alpacahq/tap/cli`), invoked
+as a subprocess rather than via direct HTTPS requests. On first run, if no
+"paper"/"live" CLI profile exists yet, the API key/secret are requested
+interactively and registered with `alpaca profile login --api-key` so future
+runs don't ask again. No separate DATA API key is required — the same
+profile is used for market-data requests via `alpaca api --use-data-api`.
 
 The number of option contracts to trade per leg is also requested
 interactively at startup (not persisted — set fresh each run).
 
 Live price feed
----------------
-Polled directly from Alpaca's /v2/stocks/{TICKER}/trades/latest endpoint
-using the TRADING API key above — no websocket subscriber or local CSV feed
+----------------
+Polled directly via `alpaca data latest-trade --symbol SPY` (through the raw
+`alpaca api` passthrough) — no websocket subscriber or local CSV feed
 required.
 """
 
@@ -71,16 +73,16 @@ import json
 import time
 import math
 import re
+import shutil
+import subprocess
 import threading
 import signal
 import logging
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
+from urllib.parse import urlencode
 
 from pathlib import Path
-
-import requests
-from dotenv import dotenv_values
 
 # ── Timezone sanity check ─────────────────────────────────────────────────────
 try:
@@ -170,24 +172,20 @@ MAX_PROB_MAX_LOSS: float | None = 0.32       # live-only safety cap on max-loss 
 MAX_PRIOR_RANGE_PCT: float | None = 0.030    # skip if prior-week (high-low)/close > 3%
 MAX_GAP_PCT: float | None = 0.008            # skip if Monday open gaps > 0.8% from prior Friday close
 
-# ── .env credential loading (with interactive prompt for anything missing) ──
-def _locate_env_file() -> Path:
-    """Find an existing .env, or fall back to creating one next to this script."""
-    _script = Path(__file__).resolve()
-    _env_candidates = [
-        Path(os.environ["ENV_FILE"]) if "ENV_FILE" in os.environ else None,
-        Path.cwd() / ".env",
-        _script.parent / ".env",
-        _script.parent.parent / ".env",
-        _script.parent.parent / (str(_script.parent.name) + ".env"),
-    ]
-    existing = next((p for p in _env_candidates if p and p.exists()), None)
-    if existing is not None:
-        return existing
-    new_path = _script.parent / ".env"
-    new_path.touch()
-    log.info("No .env found — created %s", new_path)
-    return new_path
+# ── Alpaca CLI (subprocess) — replaces direct HTTPS requests entirely ───────
+ALPACA_CLI_BIN = shutil.which("alpaca")
+
+def _require_alpaca_cli() -> str:
+    if not ALPACA_CLI_BIN:
+        log.critical(
+            "alpaca CLI not found on PATH — install it first:  "
+            "brew install alpacahq/tap/cli   (see https://github.com/alpacahq/cli)"
+        )
+        sys.exit(1)
+    return ALPACA_CLI_BIN
+
+def _cli_profile_name() -> str:
+    return "live" if ALLOW_LIVE_TRADING else "paper"
 
 def _prompt(label: str) -> str:
     try:
@@ -195,38 +193,51 @@ def _prompt(label: str) -> str:
     except EOFError:
         return ""
 
-def _get_or_prompt_secret(env: dict, env_file: Path, key: str, label: str, updated: dict) -> str:
-    """Return env[key] if set, else prompt for it and stage it for saving to .env."""
-    val = (env.get(key) or "").strip()
-    while not val:
-        val = _prompt(f"{label}: ").strip()
-        if not val:
-            log.warning("%s cannot be empty.", label)
-    if key not in env:
-        updated[key] = val
-    return val
+def _cli_profile_exists(name: str) -> bool:
+    bin_path = _require_alpaca_cli()
+    proc = subprocess.run([bin_path, "profile", "list", "--quiet"],
+                           capture_output=True, text=True, timeout=15)
+    return proc.returncode == 0 and re.search(rf"\b{re.escape(name)}\b", proc.stdout) is not None
+
+def ensure_alpaca_profile() -> str:
+    """
+    Ensure an `alpaca` CLI profile exists for this environment (paper/live),
+    prompting for the API key/secret and registering them via
+    `alpaca profile login --api-key` on first run. Returns the profile name.
+    """
+    bin_path = _require_alpaca_cli()
+    name  = _cli_profile_name()
+    scope = "LIVE" if ALLOW_LIVE_TRADING else "PAPER"
+    if _cli_profile_exists(name):
+        log.info("Using existing alpaca CLI profile %r (%s)", name, scope)
+        return name
+
+    log.info("No %r alpaca CLI profile found — one-time setup.", name)
+    key    = ""
+    secret = ""
+    while not key:
+        key = _prompt(f"Alpaca {scope} TRADING API key: ")
+    while not secret:
+        secret = _prompt(f"Alpaca {scope} TRADING API secret: ")
+
+    args = [bin_path, "profile", "login", "--api-key", "--key", key, "--secret", secret, "--name", name]
+    if ALLOW_LIVE_TRADING:
+        args.append("--live")
+    proc = subprocess.run(args, capture_output=True, text=True, timeout=30)
+    if proc.returncode != 0:
+        log.critical("alpaca profile login failed: %s", (proc.stderr or proc.stdout).strip())
+        sys.exit(1)
+    log.info("Alpaca CLI profile %r registered.", name)
+    return name
 
 def load_credentials() -> dict:
     """
-    Load Alpaca's TRADING API key/secret from .env (prompting for and saving
-    it if missing) and interactively prompt for the number of option
-    contracts to trade per leg. The trading key is also used for market-data
-    requests — no separate data key is required. Returns a dict with keys:
-    acctname, slot, qty, trade_key, trade_secret, trade_base.
+    Ensure an alpaca CLI profile exists (prompting for and registering API
+    keys via `alpaca profile login` if missing) and interactively prompt for
+    the number of option contracts to trade per leg. Returns a dict with
+    keys: acctname, slot, qty, cli_profile, trade_base.
     """
-    env_file = _locate_env_file()
-    log.info("Using .env at %s", env_file)
-    env = dotenv_values(env_file)
-
-    updated: dict[str, str] = {}
-    trade_key   = _get_or_prompt_secret(env, env_file, "apiTradeKey",   "Alpaca TRADING API key",  updated)
-    trade_secret= _get_or_prompt_secret(env, env_file, "apiTradeSecret","Alpaca TRADING API secret", updated)
-
-    if updated:
-        with env_file.open("a") as f:
-            for k, v in updated.items():
-                f.write(f"{k}={v}\n")
-        log.info("Saved %d new credential(s) to %s: %s", len(updated), env_file, ", ".join(updated.keys()))
+    cli_profile = ensure_alpaca_profile()
 
     qty_raw = _prompt(f"Number of {TICKER} option contracts to trade per leg [{QTY}]: ")
     if not qty_raw:
@@ -241,12 +252,11 @@ def load_credentials() -> dict:
             sys.exit(1)
 
     account = {
-        "acctname":     "weekly_spy",
-        "slot":         "P1",
-        "qty":          qty,
-        "trade_key":    trade_key,
-        "trade_secret": trade_secret,
-        "trade_base":   LIVE_BASE if ALLOW_LIVE_TRADING else PAPER_BASE,
+        "acctname":    "weekly_spy",
+        "slot":        "P1",
+        "qty":         qty,
+        "cli_profile": cli_profile,
+        "trade_base":  LIVE_BASE if ALLOW_LIVE_TRADING else PAPER_BASE,
     }
     log.info("Credentials loaded — qty=%d  env=%s", qty, "LIVE" if ALLOW_LIVE_TRADING else "PAPER")
     return account
@@ -494,63 +504,80 @@ def _sighandler(sig, frame):
 signal.signal(signal.SIGINT,  _sighandler)
 signal.signal(signal.SIGTERM, _sighandler)
 
-# ── HTTP helpers ──────────────────────────────────────────────────────────────
+# ── HTTP-style helpers (backed by the alpaca CLI, not raw HTTPS requests) ───
 def _trade_headers() -> dict:
-    return {
-        "accept":              "application/json",
-        "content-type":        "application/json",
-        "apca-api-key-id":     _ctx.trade_key,
-        "apca-api-secret-key": _ctx.trade_secret,
-    }
+    """No-op — auth is handled by the alpaca CLI profile, not manual headers."""
+    return {}
 
 def _data_headers() -> dict:
-    """Market-data requests reuse the same trading API key/secret — no separate data key needed."""
-    return {
-        "accept":              "application/json",
-        "apca-api-key-id":     _ctx.trade_key,
-        "apca-api-secret-key": _ctx.trade_secret,
-    }
+    """No-op — auth is handled by the alpaca CLI profile, not manual headers."""
+    return {}
+
+def _url_to_cli_args(url: str) -> tuple[str, bool]:
+    """Split a full Alpaca base+path URL into (path, use_data_api)."""
+    for base in (DATA_BASE, PAPER_BASE, LIVE_BASE):
+        if url.startswith(base):
+            return url[len(base):], base == DATA_BASE
+    raise ValueError(f"Unrecognized Alpaca base URL: {url}")
+
+def _run_alpaca_cli(args: list[str]) -> tuple[dict | list | None, int]:
+    """Run `alpaca <args>` under the active profile and return (json_body, http_status)."""
+    bin_path = _require_alpaca_cli()
+    cmd = [bin_path, "--profile", _cli_profile_name(), "--quiet"] + args
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return {"error": "alpaca CLI timed out"}, 599
+    out = proc.stdout.strip()
+    if proc.returncode == 0:
+        try:
+            return (json.loads(out) if out else {}), 200
+        except json.JSONDecodeError:
+            return {"raw": out}, 200
+    err_raw = (proc.stderr or out).strip()
+    try:
+        err = json.loads(err_raw)
+    except json.JSONDecodeError:
+        err = {"error": err_raw or "unknown alpaca CLI error"}
+    status = int(err.get("status") or (401 if proc.returncode == 2 else 500))
+    return err, status
 
 def _get(url: str, headers: dict, params: dict | None = None) -> dict | list | None:
-    try:
-        r = requests.get(url, headers=headers, params=params, timeout=15)
-        r.raise_for_status()
-        return r.json()
-    except Exception as exc:
-        log.error("GET %s failed: %s", url, exc)
+    path, use_data = _url_to_cli_args(url)
+    args = ["api", "GET", path]
+    if params:
+        args += ["--query", urlencode(params)]
+    if use_data:
+        args.append("--use-data-api")
+    payload, status = _run_alpaca_cli(args)
+    if status != 200:
+        log.error("GET %s failed: %s", url, payload)
         return None
+    return payload
 
 def _post(url: str, headers: dict, body: dict) -> tuple[dict | None, int]:
     """Returns (parsed_json_or_None, http_status_code)."""
-    try:
-        r = requests.post(url, headers=headers, data=json.dumps(body), timeout=15)
-        try:
-            payload = r.json()
-        except Exception:
-            payload = {"raw": r.text}
-        if not r.ok:
-            log.error("POST %s HTTP %s: %s", url, r.status_code, r.text[:400])
-            return None, r.status_code
-        return payload, r.status_code
-    except Exception as exc:
-        log.error("POST %s failed: %s", url, exc)
-        return None, 0
+    path, use_data = _url_to_cli_args(url)
+    args = ["api", "POST", path, "--body", json.dumps(body)]
+    if use_data:
+        args.append("--use-data-api")
+    payload, status = _run_alpaca_cli(args)
+    if status < 200 or status >= 300:
+        log.error("POST %s HTTP %s: %s", url, status, payload)
+        return None, status
+    return payload, status
 
 def _delete(url: str, headers: dict) -> tuple[dict | None, int]:
     """Returns (parsed_json_or_None, http_status_code)."""
-    try:
-        r = requests.delete(url, headers=headers, timeout=15)
-        try:
-            payload = r.json()
-        except Exception:
-            payload = {"raw": r.text}
-        if not r.ok:
-            log.error("DELETE %s HTTP %s: %s", url, r.status_code, r.text[:400])
-            return None, r.status_code
-        return payload, r.status_code
-    except Exception as exc:
-        log.error("DELETE %s failed: %s", url, exc)
-        return None, 0
+    path, use_data = _url_to_cli_args(url)
+    args = ["api", "DELETE", path]
+    if use_data:
+        args.append("--use-data-api")
+    payload, status = _run_alpaca_cli(args)
+    if status < 200 or status >= 300:
+        log.error("DELETE %s HTTP %s: %s", url, status, payload)
+        return None, status
+    return payload, status
 
 # ── OCC symbol builder ────────────────────────────────────────────────────────
 def occ_symbol(underlying: str, expiry: date, cp: str, strike: float) -> str:
@@ -569,16 +596,15 @@ def _load_market_holidays(lookahead_days: int = 60) -> None:
     today = datetime.now(ET).date()
     end   = today + timedelta(days=lookahead_days)
     try:
-        r = requests.get(
+        calendar = _get(
             f"{_ctx.trade_base}/v2/calendar",
-            headers=_trade_headers(),
+            _trade_headers(),
             params={"start": today.isoformat(), "end": end.isoformat()},
-            timeout=15,
         )
-        if not r.ok:
-            log.warning("Market calendar fetch failed (HTTP %d) — holiday check skipped", r.status_code)
+        if not isinstance(calendar, list):
+            log.warning("Market calendar fetch failed — holiday check skipped")
             return
-        open_days = {date.fromisoformat(d["date"]) for d in r.json()}
+        open_days = {date.fromisoformat(d["date"]) for d in calendar}
         _market_holidays = set()
         cur = today
         while cur <= end:
@@ -647,16 +673,13 @@ _tick_lock = threading.Lock()
 _session_ticks: dict[date, list[tuple[datetime, float]]] = {}
 
 def _fetch_latest_trade_price() -> float | None:
-    """Fetch SPY's latest trade price directly from Alpaca's data API."""
+    """Fetch SPY's latest trade price via the alpaca CLI's data API passthrough."""
     url = f"{DATA_BASE}/v2/stocks/{TICKER}/trades/latest"
-    try:
-        resp = requests.get(url, headers=_data_headers(), timeout=10)
-        resp.raise_for_status()
-        price = resp.json().get("trade", {}).get("p")
-        return float(price) if price is not None else None
-    except Exception as exc:
-        log.error("Failed fetching latest trade price for %s: %s", TICKER, exc)
+    data = _get(url, _data_headers())
+    if data is None:
         return None
+    price = (data.get("trade") or {}).get("p")
+    return float(price) if price is not None else None
 
 def read_session_ticks(day: date) -> list[tuple[datetime, float]]:
     """Return all (timestamp, price) ticks polled so far for the session date."""
@@ -1613,22 +1636,15 @@ def startup_diagnostics():
     failures: list[str] = []
 
     log.info("[0/6] Checking Alpaca paper trading auth …")
-    try:
-        r_auth = requests.get(f"{_ctx.trade_base}/v2/account", headers=_trade_headers(), timeout=10)
-        if r_auth.status_code == 401:
-            log.error("  ✗ FAIL — 401 Unauthorized — check apiTradeKey/apiTradeSecret in .env")
-            failures.append("Auth 401 — invalid paper trading credentials")
-        elif r_auth.ok:
-            acct = r_auth.json()
-            log.info("  ✓ PASS — account_number=%s  status=%s  buying_power=$%.2f",
-                     acct.get("account_number", "?"),
-                     acct.get("status", "?"),
-                     float(acct.get("buying_power") or 0))
-        else:
-            log.warning("  ✗ WARN — HTTP %d: %s", r_auth.status_code, r_auth.text[:200])
-    except Exception as exc:
-        log.error("  ✗ FAIL — auth check exception: %s", exc)
-        failures.append(f"Auth check exception: {exc}")
+    acct = _get(f"{_ctx.trade_base}/v2/account", _trade_headers())
+    if acct is None:
+        log.error("  ✗ FAIL — auth check failed — check the alpaca CLI profile (`alpaca profile list`)")
+        failures.append("Auth check failed — invalid or missing alpaca CLI profile")
+    else:
+        log.info("  ✓ PASS — account_number=%s  status=%s  buying_power=$%.2f",
+                 acct.get("account_number", "?"),
+                 acct.get("status", "?"),
+                 float(acct.get("buying_power") or 0))
 
     log.info("[1/6] Polling SPY live price from Alpaca …")
     spy_price = get_spy_price()
@@ -1768,8 +1784,7 @@ def _make_thread_target(fn, **kwargs):
     thread's _ctx, then calls fn(**kwargs).
     """
     snap = dict(
-        trade_key      = _ctx.trade_key,
-        trade_secret   = _ctx.trade_secret,
+        cli_profile    = _ctx.cli_profile,
         acct_name      = _ctx.acct_name,
         slot           = _ctx.slot,
         qty            = _ctx.qty,
@@ -1919,8 +1934,7 @@ def run_scheduler():
 # ── Per-account thread entry ─────────────────────────────────────────────────
 def run_account(acct: dict) -> None:
     """Initialise per-thread state in _ctx and run the scheduler for one account."""
-    _ctx.trade_key     = acct["trade_key"]
-    _ctx.trade_secret  = acct["trade_secret"]
+    _ctx.cli_profile   = acct["cli_profile"]
     _ctx.acct_name     = acct["acctname"]
     _ctx.slot          = acct["slot"]
     _ctx.qty           = acct["qty"]
@@ -1935,8 +1949,8 @@ def run_account(acct: dict) -> None:
     _ctx.shutdown       = threading.Event()
     _ctx.day_done       = threading.Event()
     _all_shutdowns.append(_ctx.shutdown)
-    log.info("Account thread started — acctname=%s  slot=%s  key=%s…",
-             acct["acctname"], acct["slot"], acct["trade_key"][:8])
+    log.info("Account thread started — acctname=%s  slot=%s  profile=%s",
+             acct["acctname"], acct["slot"], acct["cli_profile"])
 
     if _sentinel_exists(acct["acctname"], acct["slot"]):
         _ctx.trade_executed = True
@@ -1994,8 +2008,7 @@ def main():
 
     account = load_credentials()
 
-    _ctx.trade_key     = account["trade_key"]
-    _ctx.trade_secret  = account["trade_secret"]
+    _ctx.cli_profile   = account["cli_profile"]
     _ctx.acct_name     = account["acctname"]
     _ctx.slot          = account["slot"]
     _ctx.qty           = account["qty"]
