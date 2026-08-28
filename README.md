@@ -51,9 +51,9 @@ parameter sweep.
    apiKeyAIV011P=...      # optional — used only for the market calendar endpoint
    apiSecretAIV011P=...
    ```
-   (`weekly_trading_spy.py` uses its own `apiDataKey`/`apiDataSecret`/`apiTradeKey`/
-   `apiTradeSecret` entries — see [Live trading](#live-trading) below. Any missing
-   key is requested interactively at startup and saved to `.env` automatically.)
+   (`weekly_trading_spy.py` only needs its own `apiTradeKey`/`apiTradeSecret`
+   entry — see [Live trading](#live-trading) below. If missing, it is
+   requested interactively at startup and saved to `.env` automatically.)
 3. Populate `underlying-tickers/SPY.csv` by running:
    ```
    python3 get_5yrs_spy_bars.py
@@ -91,12 +91,13 @@ Backtest result over 2021-08-26 → 2026-08-25: 97 trades, 59.8% win rate,
 
 `weekly_trading_spy.py` mirrors the backtest's dynamic timing but polls
 prices directly from Alpaca's latest-trade endpoint (no websocket subscriber
-or local CSV feed) and trades a single account. It loads Alpaca DATA and
-TRADING API keys (`apiDataKey`, `apiDataSecret`, `apiTradeKey`,
-`apiTradeSecret`) from `.env`, prompting for and saving any that are
-missing, and asks interactively at startup for the number of option
-contracts to trade per leg. No Supabase account is required. Its own entry
-window (9:35–10:30 ET) and exit cutoff (15:40 ET) constants are independent
+or local CSV feed) and trades a single account. It only needs a single
+Alpaca TRADING API key/secret (`apiTradeKey`, `apiTradeSecret`) from `.env`
+— no separate DATA API key, since the trading key is also used for
+market-data requests. It prompts for and saves the trading key if missing,
+and asks interactively at startup for the number of option contracts to
+trade per leg. No Supabase account is required. Its own entry window
+(9:35–10:30 ET) and exit cutoff (15:40 ET) constants are independent
 of the backtest's tuned defaults above. See the module docstring in
 [weekly_trading_spy.py](weekly_trading_spy.py) for full configuration
 details.

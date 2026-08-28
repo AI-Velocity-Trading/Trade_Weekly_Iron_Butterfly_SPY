@@ -46,10 +46,11 @@ Exit (dynamic, Monday–Thursday):
 
 Environment
 -----------
-Reads Alpaca DATA and TRADING API keys from the .env file in the project
-root directory (apiDataKey, apiDataSecret, apiTradeKey, apiTradeSecret). Any
-key missing from .env is requested interactively at startup and appended to
-the file so future runs don't ask again. No Supabase account required.
+Reads Alpaca's TRADING API key/secret from the .env file in the project
+root directory (apiTradeKey, apiTradeSecret). If missing, it is requested
+interactively at startup and appended to the file so future runs don't ask
+again. No Supabase account and no separate DATA API key are required — the
+trading key is also used for market-data requests.
 
 The number of option contracts to trade per leg is also requested
 interactively at startup (not persisted — set fresh each run).
@@ -57,7 +58,7 @@ interactively at startup (not persisted — set fresh each run).
 Live price feed
 ---------------
 Polled directly from Alpaca's /v2/stocks/{TICKER}/trades/latest endpoint
-using the DATA API keys above — no websocket subscriber or local CSV feed
+using the TRADING API key above — no websocket subscriber or local CSV feed
 required.
 """
 
@@ -207,18 +208,17 @@ def _get_or_prompt_secret(env: dict, env_file: Path, key: str, label: str, updat
 
 def load_credentials() -> dict:
     """
-    Load Alpaca DATA + TRADING API keys from .env (prompting for and saving
-    any that are missing), and interactively prompt for the number of option
-    contracts to trade per leg. Returns a dict with keys: acctname, slot,
-    qty, data_key, data_secret, trade_key, trade_secret, trade_base.
+    Load Alpaca's TRADING API key/secret from .env (prompting for and saving
+    it if missing) and interactively prompt for the number of option
+    contracts to trade per leg. The trading key is also used for market-data
+    requests — no separate data key is required. Returns a dict with keys:
+    acctname, slot, qty, trade_key, trade_secret, trade_base.
     """
     env_file = _locate_env_file()
     log.info("Using .env at %s", env_file)
     env = dotenv_values(env_file)
 
     updated: dict[str, str] = {}
-    data_key    = _get_or_prompt_secret(env, env_file, "apiDataKey",    "Alpaca DATA API key",     updated)
-    data_secret = _get_or_prompt_secret(env, env_file, "apiDataSecret", "Alpaca DATA API secret",  updated)
     trade_key   = _get_or_prompt_secret(env, env_file, "apiTradeKey",   "Alpaca TRADING API key",  updated)
     trade_secret= _get_or_prompt_secret(env, env_file, "apiTradeSecret","Alpaca TRADING API secret", updated)
 
@@ -244,8 +244,6 @@ def load_credentials() -> dict:
         "acctname":     "weekly_spy",
         "slot":         "P1",
         "qty":          qty,
-        "data_key":     data_key,
-        "data_secret":  data_secret,
         "trade_key":    trade_key,
         "trade_secret": trade_secret,
         "trade_base":   LIVE_BASE if ALLOW_LIVE_TRADING else PAPER_BASE,
@@ -506,10 +504,11 @@ def _trade_headers() -> dict:
     }
 
 def _data_headers() -> dict:
+    """Market-data requests reuse the same trading API key/secret — no separate data key needed."""
     return {
         "accept":              "application/json",
-        "apca-api-key-id":     _ctx.data_key,
-        "apca-api-secret-key": _ctx.data_secret,
+        "apca-api-key-id":     _ctx.trade_key,
+        "apca-api-secret-key": _ctx.trade_secret,
     }
 
 def _get(url: str, headers: dict, params: dict | None = None) -> dict | list | None:
@@ -1771,8 +1770,6 @@ def _make_thread_target(fn, **kwargs):
     snap = dict(
         trade_key      = _ctx.trade_key,
         trade_secret   = _ctx.trade_secret,
-        data_key       = _ctx.data_key,
-        data_secret    = _ctx.data_secret,
         acct_name      = _ctx.acct_name,
         slot           = _ctx.slot,
         qty            = _ctx.qty,
@@ -1924,8 +1921,6 @@ def run_account(acct: dict) -> None:
     """Initialise per-thread state in _ctx and run the scheduler for one account."""
     _ctx.trade_key     = acct["trade_key"]
     _ctx.trade_secret  = acct["trade_secret"]
-    _ctx.data_key      = acct["data_key"]
-    _ctx.data_secret   = acct["data_secret"]
     _ctx.acct_name     = acct["acctname"]
     _ctx.slot          = acct["slot"]
     _ctx.qty           = acct["qty"]
@@ -2001,8 +1996,6 @@ def main():
 
     _ctx.trade_key     = account["trade_key"]
     _ctx.trade_secret  = account["trade_secret"]
-    _ctx.data_key      = account["data_key"]
-    _ctx.data_secret   = account["data_secret"]
     _ctx.acct_name     = account["acctname"]
     _ctx.slot          = account["slot"]
     _ctx.qty           = account["qty"]
