@@ -35,8 +35,8 @@ parameter sweep.
 |---|---|
 | [weekly_iron_butterfly_spy_backtest_dynamic.py](weekly_iron_butterfly_spy_backtest_dynamic.py) | Backtest engine. Replays historical SPY price bars + Alpaca OPRA options data to simulate the strategy and report P&L, win rate, drawdown, Sharpe, etc. Includes an `--optimize` mode that grid-searches entry window, exit cutoff, breach fraction, and filter thresholds. |
 | [weekly_trading_spy.py](weekly_trading_spy.py) | Live-trading counterpart. Runs the same dynamic entry/exit logic against Alpaca's live price feed and places real orders via Alpaca on a single account. |
-| [get_5yrs_spy_bars.py](get_5yrs_spy_bars.py) | One-off/refresh utility that fetches 5 years of SPY 1-minute SIP bars (4:00 AM–8:00 PM ET) from Alpaca and writes them to `underlying-tickers/SPY.csv`, the format the backtest expects. |
-| [underlying-tickers/SPY.csv](underlying-tickers/SPY.csv) | Historical 1-min SPY bars (`date_et,time_et,open,high,low,close`) used by the backtest. |
+| [get_5yrs_spy_bars.py](get_5yrs_spy_bars.py) | One-off/refresh utility that fetches 5 years of SPY 1-minute SIP bars (4:00 AM–8:00 PM ET) from Alpaca and writes them to `underlying-tickers/SPY.csv`, the format the backtest expects. Requires a SIP market-data subscription (see [Setup](#setup)). |
+| [underlying-tickers/SPY.csv](underlying-tickers/SPY.csv) | Historical 1-min SPY bars (`date_et,time_et,open,high,low,close`) used by the backtest. Already included in the repo, so the backtest can be run without a SIP data plan. |
 
 ## Setup
 
@@ -54,7 +54,15 @@ parameter sweep.
    (`weekly_trading_spy.py` only needs its own `apiTradeKey`/`apiTradeSecret`
    entry — see [Live trading](#live-trading) below. If missing, it is
    requested interactively at startup and saved to `.env` automatically.)
-3. Populate `underlying-tickers/SPY.csv` by running:
+3. `underlying-tickers/SPY.csv` is already included in the repo with 5 years
+   of SPY 1-min bars, so the backtest can be run as-is — **no SIP data plan
+   is required** just to run the backtest.
+
+   Only regenerate/refresh this file by running `get_5yrs_spy_bars.py` if you
+   need newer data. That script calls Alpaca's stock bars endpoint with
+   `feed=sip`, which **requires a SIP market-data subscription** (Alpaca's
+   paid Algo Trader Plus plan) — the free/basic plan only has access to the
+   IEX feed and will fail or return incomplete data.
    ```
    python3 get_5yrs_spy_bars.py
    ```
