@@ -86,7 +86,9 @@ BT_START_OVERRIDE=2021-08-26 BT_END_OVERRIDE=2026-08-25 python3 weekly_iron_butt
 ```
 
 Options pricing (Alpaca OPRA daily/1-min bars) is fetched live from Alpaca —
-only the underlying SPY price history needs to be local.
+only the underlying SPY price history needs to be local. Fetching OPRA options
+data requires Alpaca's paid **Algo Trader Plus** plan; the free/basic plan
+does not include OPRA access and will fail or return incomplete data.
 
 ## Current tuned parameters
 
