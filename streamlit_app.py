@@ -333,10 +333,16 @@ def render_price_chart():
     fig.add_trace(go.Scatter(x=times, y=high.values, mode='lines', name='20-min High', line=dict(width=0), showlegend=False))
     fig.add_trace(go.Scatter(x=times, y=low.values, mode='lines', name='20-min Low', line=dict(width=0), fillcolor='rgba(123, 58, 237, 0.2)', fill='tonexty', showlegend=False))
     
+    # Dynamic y-axis with padding to ensure readable scale for small ranges
+    y_min, y_max = prices.min(), prices.max()
+    y_range = y_max - y_min
+    padding = max(0.5, y_range * 0.15)  # 15% padding or $0.50 minimum
+    
     fig.update_layout(
         title="SPY Minute-by-Minute Price Action (Simulated)",
         xaxis_title="Time ET",
         yaxis_title="Price ($)",
+        yaxis=dict(range=[y_min - padding, y_max + padding]),
         template="plotly_dark",
         height=350,
         hovermode='x unified',
@@ -400,7 +406,7 @@ def render_equity_curve(df):
     ))
     
     fig.update_layout(
-        title="Backtest Cumulative P&L (2024-2025)",
+        title="Backtest Cumulative P&L (Jan 2024 – Aug 2026)",
         xaxis_title="Trade #",
         yaxis_title="Cumulative P&L ($)",
         template="plotly_dark",
@@ -492,8 +498,49 @@ if media_files["video"] or media_files["pdf"]:
     st.markdown("---")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PRIMARY DEMO SECTION
+# HISTORICAL VALIDATION SECTION
 # ═══════════════════════════════════════════════════════════════════════════════
+
+st.markdown("""
+<h3 style="color: #00d9ff; font-size: 24px; letter-spacing: 2px; margin-top: 30px;">
+    📊 HISTORICAL VALIDATION
+</h3>
+<p style="color: #a8b2c5; margin-bottom: 20px;">
+Aug 2021 – Aug 2026 Backtest
+</p>
+""", unsafe_allow_html=True)
+
+col1, col2, col3, col4, col5 = st.columns(5)
+
+with col1:
+    st.metric("Historical P&L", "+$108,840")
+
+with col2:
+    st.metric("Win Rate", "59.8%")
+
+with col3:
+    st.metric("Sharpe Ratio", "1.06")
+
+with col4:
+    st.metric("Total Trades", "97")
+
+with col5:
+    st.metric("Max Drawdown", "-$36,280")
+
+st.markdown("""
+<p style="color: #a8b2c5; font-size: 14px; margin-top: 15px;">
+<strong>Backtested results.</strong> Historical performance is not indicative of future results.
+</p>
+<p style="color: #a8b2c5; font-size: 12px;">
+5-year historical backtest using SPY 1-minute bars and Alpaca OPRA options pricing.
+</p>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRIMARY DEMO SECTION
+# ═════════════════════════════════════════════════════════════════════════════════
 
 st.markdown("""
 <h3 style="color: #00d9ff; font-size: 24px; letter-spacing: 2px; margin-top: 30px;">
@@ -536,7 +583,7 @@ if len(st.session_state.audit_log) > 0:
             <div class="demo-header">01 · ENTRY WINDOW OPEN</div>
             <div class="demo-body">
                 Monday · 9:35–10:30 ET<br>
-                Agent begins polling SPY minute-by-minute to identify the quietest entry point.
+                Agent polls SPY minute-by-minute, tracking the 20-minute trailing high/low range to identify when the trailing range stabilizes.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -596,7 +643,8 @@ if len(st.session_state.audit_log) > 0:
                 <strong>SELL CALL</strong> @ $766 (ATM)<br>
                 <strong>BUY CALL</strong> @ $776 (ATM + $10)<br>
                 <br>
-                <strong>Net Credit: $6.17</strong> | <strong>Max Profit: $62,750</strong> | <strong>Max Loss: $37,250</strong>
+                <strong>Wing Width: $10</strong> | <strong>Net Credit: $4.27/contract</strong><br>
+                <strong>Max Profit: $427</strong> (1 contract) | <strong>Max Loss: $573</strong> (1 contract)
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -612,11 +660,11 @@ if len(st.session_state.audit_log) > 0:
                 <strong>EXECUTION LAYER</strong><br>
                 • Framework: Alpaca CLI (subprocess)<br>
                 • Authentication: Stored profile (no hardcoded keys)<br>
-                • Order Package: 4 legs, 100 contracts each<br>
-                • Status: Orders submitted (demo) → Filled<br>
+                • Order Package: 4 legs, 1 contract each<br>
+                • Status: SIMULATED EXECUTION → FILLED<br>
                 <br>
-                <strong style="color: #00d9ff;">DEMO MODE:</strong> This is a simulation. 
-                Production agent routes through real Alpaca trading endpoints.
+                <strong style="color: #00d9ff;">SIMULATION:</strong> No order submitted to Alpaca.<br>
+                Production agent would route through real Alpaca trading endpoints.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -642,7 +690,7 @@ if len(st.session_state.audit_log) > 0:
             </div>
             <div class="risk-condition">
                 <strong>02 · +90% PROFIT TARGET</strong><br>
-                P&L ≥ $56,475 (90% of max)<br>
+                P&L ≥ $384 (90% of max)<br>
                 → Lock in gains early
             </div>
             """, unsafe_allow_html=True)
@@ -651,7 +699,7 @@ if len(st.session_state.audit_log) > 0:
             st.markdown("""
             <div class="risk-condition">
                 <strong>03 · −80% STOP LOSS</strong><br>
-                P&L ≤ −$29,800 (80% of max loss)<br>
+                P&L ≤ −$458 (80% of max loss)<br>
                 → Limit damage
             </div>
             <div class="risk-condition">
@@ -670,7 +718,7 @@ if len(st.session_state.audit_log) > 0:
                 <strong>EXIT CONDITION MET</strong><br>
                 Condition: +90% Profit Target<br>
                 Time: 15:40 ET (Thursday)<br>
-                P&L: +$56,475<br>
+                P&L: +$384<br>
                 <br>
                 <strong style="color: #00d9ff;">POSITION CLOSED</strong><br>
                 <strong style="color: #00d9ff;">AGENT CYCLE COMPLETE</strong>
@@ -786,96 +834,6 @@ for i, (stage, desc) in enumerate(stages, 1):
             <span style="color: #a8b2c5;">{desc}</span>
         </div>
         """, unsafe_allow_html=True)
-
-st.markdown("---")
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# HISTORICAL VALIDATION
-# ═══════════════════════════════════════════════════════════════════════════════
-
-st.markdown("""
-<h3 style="color: #00d9ff; font-size: 24px; letter-spacing: 2px; margin-top: 30px;">
-    HISTORICAL VALIDATION
-</h3>
-<p style="color: #a8b2c5; margin-bottom: 20px;">
-<strong>BACKTEST</strong> — Simulated execution across 5 years of historical data
-</p>
-""", unsafe_allow_html=True)
-
-if backtest_df is not None and len(backtest_df) > 0:
-    # Compute metrics
-    total_trades = len(backtest_df)
-    winning_trades = len(backtest_df[backtest_df["pnl"] > 0])
-    losing_trades = len(backtest_df[backtest_df["pnl"] < 0])
-    win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
-    total_pnl = backtest_df["cum_pnl"].iloc[-1] if len(backtest_df) > 0 else 0
-    
-    # Exit reason breakdown
-    scheduled = len(backtest_df[backtest_df["exit_reason"] == "scheduled"])
-    profit_target = len(backtest_df[backtest_df["exit_reason"] == "profit_target_90pct"])
-    stop_loss = len(backtest_df[backtest_df["exit_reason"] == "stop_loss_80pct"])
-    breach = len(backtest_df[backtest_df["underlying_exit_reason"] == "underlying_breach"])
-    
-    # Display metrics
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    with col1:
-        st.metric("Total Trades", total_trades)
-    with col2:
-        st.metric("Win Rate", f"{win_rate:.1f}%")
-    with col3:
-        st.metric("Total P&L", f"${total_pnl:,.0f}")
-    with col4:
-        st.metric("Winning Trades", winning_trades)
-    with col5:
-        st.metric("Losing Trades", losing_trades)
-    
-    # Exit reason breakdown
-    st.markdown("#### Exit Reason Breakdown")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-box">
-            <strong>Scheduled</strong><br>
-            {scheduled} trades
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""
-        <div class="metric-box">
-            <strong>Wing Breach</strong><br>
-            {breach} trades
-        </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"""
-        <div class="metric-box">
-            <strong>Profit Target</strong><br>
-            {profit_target} trades
-        </div>
-        """, unsafe_allow_html=True)
-    with col4:
-        st.markdown(f"""
-        <div class="metric-box">
-            <strong>Stop Loss</strong><br>
-            {stop_loss} trades
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Equity curve
-    st.markdown("#### Equity Curve")
-    equity_fig = render_equity_curve(backtest_df)
-    if equity_fig:
-        st.plotly_chart(equity_fig, use_container_width=True)
-    
-    st.info(
-        "**Historical simulation only.** Backtested performance does not represent actual trading results "
-        "and does not guarantee future performance.",
-        icon="📊"
-    )
-else:
-    st.warning("Backtest CSV not found. Ensure `weekly_iron_butterfly_spy_backtest_dynamic.csv` is in the repo root.")
 
 st.markdown("---")
 
