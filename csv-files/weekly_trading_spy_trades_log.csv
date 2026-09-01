@@ -1,0 +1,3 @@
+timestamp,strategy,expiry,atm,spy_price,longPut_strike,shortPut_strike,shortCall_strike,longCall_strike,longPut_mid,shortPut_mid,shortCall_mid,longCall_mid,net_credit,max_profit,max_loss,prob_max_loss,ev,order_status,close_pnl,close_reason
+2026-08-31T09:54:23.850012-04:00,SPY Weekly Iron Butterfly (Dynamic Live),2026-09-04,766.0,766.26,756.0,766.0,766.0,776.0,1.05,3.55,4.32,0.655,6.165,61650.0,38350.0,0.3172,9879.05,filled,,
+2026-08-31T15:40:16.232708-04:00,SPY Weekly Iron Butterfly (Dynamic Live),,,,,,,,,,,,,,,,,CLOSE,600.0,scheduled

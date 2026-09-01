@@ -1,0 +1,138 @@
+2026-08-31 09:36:50 [INFO] Using existing alpaca CLI profile 'spy_dansavage_pa3em2vld7xn' (PAPER)
+Number of SPY option contracts to trade per leg [100]: 2026-08-31 09:36:50 [INFO] Credentials loaded — qty=100  env=PAPER
+2026-08-31 09:36:50 [INFO] Starting weekly_trading_spy.py …
+2026-08-31 09:36:50 [INFO] Live price feed: direct Alpaca latest-trade polling
+2026-08-31 09:36:50 [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-08-31 09:36:50 [INFO] STARTUP DIAGNOSTICS  (Iron Butterfly SPY — Weekly Dynamic Live)
+2026-08-31 09:36:50 [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-08-31 09:36:50 [INFO] [0/6] Checking Alpaca paper trading auth …
+2026-08-31 09:36:50 [INFO]   ✓ PASS — account_number=PA3EM2VLD7XN  status=ACTIVE  buying_power=$400000.00
+2026-08-31 09:36:50 [INFO] [1/6] Polling SPY live price from Alpaca …
+2026-08-31 09:36:50 [INFO] SPY live price: $766.22  (polled @ 09:36:50 ET)
+2026-08-31 09:36:50 [INFO]   ✓ PASS — SPY = $766.22
+2026-08-31 09:36:50 [INFO] [2/6] Building OCC symbols …
+2026-08-31 09:36:50 [INFO] Market calendar loaded — 17 holiday/weekend days in next 60 days
+2026-08-31 09:36:50 [INFO]   ATM=766  expiry=2026-09-04  (this week's Friday)
+2026-08-31 09:36:50 [INFO]   Strikes:  longPut=756     shortPut=766     shortCall=766     longCall=776   
+2026-08-31 09:36:50 [INFO]   ✓ longPut      = 'SPY   260904P00756000'  (len=21)
+2026-08-31 09:36:50 [INFO]   ✓ shortPut     = 'SPY   260904P00766000'  (len=21)
+2026-08-31 09:36:50 [INFO]   ✓ shortCall    = 'SPY   260904C00766000'  (len=21)
+2026-08-31 09:36:50 [INFO]   ✓ longCall     = 'SPY   260904C00776000'  (len=21)
+2026-08-31 09:36:50 [INFO]   ✓ PASS — all OCC symbols 21 chars
+2026-08-31 09:36:50 [INFO] [3/6] Fetching options snapshots …
+2026-08-31 09:36:50 [INFO]   Requesting (unpadded): SPY260904P00756000, SPY260904P00766000, SPY260904C00766000, SPY260904C00776000
+2026-08-31 09:36:50 [INFO]   Snapshot keys returned (4):
+2026-08-31 09:36:50 [INFO]     • 'SPY260904C00766000'
+2026-08-31 09:36:50 [INFO]     • 'SPY260904C00776000'
+2026-08-31 09:36:50 [INFO]     • 'SPY260904P00756000'
+2026-08-31 09:36:50 [INFO]     • 'SPY260904P00766000'
+2026-08-31 09:36:50 [INFO]   ✓ longPut      → SPY   260904P00756000
+2026-08-31 09:36:50 [INFO]   ✓ shortPut     → SPY   260904P00766000
+2026-08-31 09:36:50 [INFO]   ✓ shortCall    → SPY   260904C00766000
+2026-08-31 09:36:50 [INFO]   ✓ longCall     → SPY   260904C00776000
+2026-08-31 09:36:50 [INFO]   ✓ PASS — all 4 legs present in snapshot
+2026-08-31 09:36:50 [INFO] [4/6] Extracting leg prices and greeks …
+2026-08-31 09:36:50 [INFO]   longPut       mid=$1.1000     bid=1.0900  ask=1.1100  iv=14.3%  Δ=-0.1763  Γ=0.02250  Θ=-0.3583  V=0.2077
+2026-08-31 09:36:50 [INFO]   shortPut      mid=$3.6700     bid=3.6600  ask=3.6800  iv=12.3%  Δ=-0.4762  Γ=0.04040  Θ=-0.4535  V=0.3194
+2026-08-31 09:36:50 [INFO]   shortCall     mid=$4.4100     bid=4.4000  ask=4.4200  iv=13.0%  Δ=0.5228  Γ=0.03830  Θ=-0.5565  V=0.3195
+2026-08-31 09:36:50 [INFO]   longCall      mid=$0.7050     bid=0.7000  ask=0.7100  iv=11.3%  Δ=0.1508  Γ=0.02580  Θ=-0.2765  V=0.1877
+2026-08-31 09:36:50 [INFO] [5/6] Running EV calculation …
+2026-08-31 09:36:50 [INFO] Leg prices: longPut=$1.10  shortPut=$3.67  shortCall=$4.41  longCall=$0.70
+2026-08-31 09:36:50 [INFO] EV calc: net_credit=6.28  max_profit=$62750.00  max_loss=$37250.00  prob_max_loss=32.7%  EV=$9897.17
+2026-08-31 09:36:50 [INFO]   net_credit    = $6.2750 per contract
+2026-08-31 09:36:50 [INFO]   max_profit    = $62750.00  (100 contracts × $6.2750 × 100)
+2026-08-31 09:36:50 [INFO]   max_loss      = $37250.00
+2026-08-31 09:36:50 [INFO]   prob_max_loss = 32.71%
+2026-08-31 09:36:50 [INFO]   EV            = +$9897.17
+2026-08-31 09:36:50 [INFO]   ✓ PASS — net_credit > 0
+2026-08-31 09:36:50 [INFO] [6/6] Checking existing SPY options positions …
+2026-08-31 09:36:51 [INFO]   (none — no open SPY options positions)
+2026-08-31 09:36:51 [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-08-31 09:36:51 [INFO] DIAGNOSTICS COMPLETE — configuration OK ✓  (snapshot/EV warnings above are non-fatal — open_butterfly() retries up to 8× during the entry window)
+2026-08-31 09:36:51 [INFO] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-08-31 09:36:51 [INFO] Account thread started — acctname=weekly_spy  slot=P1  profile=spy_dansavage_pa3em2vld7xn
+2026-08-31 09:36:51 [INFO] Iron Butterfly SPY (Weekly Dynamic Live) scheduler started.
+2026-08-31 09:36:51 [INFO] Strategy: SPY butterfly  qty=100  wingWidth=10
+2026-08-31 09:36:51 [INFO] ENTRY search window: Monday only 09:35–10:30 ET (dynamic, quietest-minute)
+2026-08-31 09:36:51 [INFO] EXIT: dynamic wing-breach (BREACH_FRACTION=1.00) Mon–Thu, Thursday fallback 15:40 ET
+2026-08-31 09:36:51 [INFO] Weekly state reset (trade_executed=False)
+2026-08-31 09:36:51 [INFO] Waiting for dynamic entry window 09:35-10:30 ET …
+2026-08-31 09:36:51 [INFO] Heartbeat [Mon 09:36 ET] — trade_executed=False  open_attempted=True  |  OPEN ATTEMPT IN PROGRESS  |  CLOSE in 06h03m08s
+2026-08-31 09:36:51 [INFO] Market-value CSV log created: /Users/danielsavage/Desktop/Folders/VisualStudio/trade-iron-butterfly-weekly/csv-files/weekly_trading_spy_market_value_log.csv
+2026-08-31 09:36:51 [INFO] SPY live price: $766.25  (polled @ 09:36:51 ET)
+2026-08-31 09:37:06 [INFO] SPY live price: $766.18  (polled @ 09:37:06 ET)
+2026-08-31 09:37:21 [INFO] SPY live price: $766.08  (polled @ 09:37:21 ET)
+2026-08-31 09:37:36 [INFO] SPY live price: $766.24  (polled @ 09:37:36 ET)
+2026-08-31 09:37:52 [INFO] SPY live price: $766.25  (polled @ 09:37:52 ET)
+2026-08-31 09:38:07 [INFO] SPY live price: $766.28  (polled @ 09:38:07 ET)
+2026-08-31 09:38:22 [INFO] SPY live price: $766.42  (polled @ 09:38:22 ET)
+2026-08-31 09:38:37 [INFO] SPY live price: $766.29  (polled @ 09:38:37 ET)
+2026-08-31 09:38:52 [INFO] SPY live price: $766.22  (polled @ 09:38:52 ET)
+2026-08-31 09:39:08 [INFO] SPY live price: $766.20  (polled @ 09:39:08 ET)
+2026-08-31 09:39:23 [INFO] SPY live price: $766.23  (polled @ 09:39:23 ET)
+2026-08-31 09:39:38 [INFO] SPY live price: $766.27  (polled @ 09:39:38 ET)
+2026-08-31 09:39:53 [INFO] SPY live price: $766.36  (polled @ 09:39:53 ET)
+2026-08-31 09:40:08 [INFO] SPY live price: $766.18  (polled @ 09:40:08 ET)
+2026-08-31 09:40:23 [INFO] SPY live price: $766.62  (polled @ 09:40:23 ET)
+2026-08-31 09:40:38 [INFO] SPY live price: $766.40  (polled @ 09:40:38 ET)
+2026-08-31 09:40:54 [INFO] SPY live price: $766.15  (polled @ 09:40:54 ET)
+2026-08-31 09:41:09 [INFO] SPY live price: $766.24  (polled @ 09:41:09 ET)
+2026-08-31 09:41:24 [INFO] SPY live price: $766.28  (polled @ 09:41:24 ET)
+2026-08-31 09:41:39 [INFO] SPY live price: $766.24  (polled @ 09:41:39 ET)
+2026-08-31 09:41:51 [INFO] Heartbeat [Mon 09:41 ET] — trade_executed=False  open_attempted=True  |  OPEN ATTEMPT IN PROGRESS  |  CLOSE in 05h58m08s
+2026-08-31 09:41:54 [INFO] SPY live price: $766.13  (polled @ 09:41:54 ET)
+2026-08-31 09:42:09 [INFO] SPY live price: $766.19  (polled @ 09:42:09 ET)
+2026-08-31 09:42:24 [INFO] SPY live price: $766.23  (polled @ 09:42:24 ET)
+2026-08-31 09:42:40 [INFO] SPY live price: $766.12  (polled @ 09:42:40 ET)
+2026-08-31 09:42:55 [INFO] SPY live price: $766.31  (polled @ 09:42:55 ET)
+2026-08-31 09:43:10 [INFO] SPY live price: $766.16  (polled @ 09:43:10 ET)
+2026-08-31 09:43:25 [INFO] SPY live price: $766.25  (polled @ 09:43:25 ET)
+2026-08-31 09:43:40 [INFO] SPY live price: $766.03  (polled @ 09:43:40 ET)
+2026-08-31 09:43:55 [INFO] SPY live price: $765.97  (polled @ 09:43:55 ET)
+2026-08-31 09:44:11 [INFO] SPY live price: $765.85  (polled @ 09:44:11 ET)
+2026-08-31 09:44:26 [INFO] SPY live price: $765.95  (polled @ 09:44:26 ET)
+2026-08-31 09:44:41 [INFO] SPY live price: $765.98  (polled @ 09:44:41 ET)
+2026-08-31 09:44:56 [INFO] SPY live price: $765.83  (polled @ 09:44:56 ET)
+2026-08-31 09:45:11 [INFO] SPY live price: $766.09  (polled @ 09:45:11 ET)
+2026-08-31 09:45:26 [INFO] SPY live price: $766.12  (polled @ 09:45:26 ET)
+2026-08-31 09:45:42 [INFO] SPY live price: $766.01  (polled @ 09:45:42 ET)
+2026-08-31 09:45:57 [INFO] SPY live price: $766.12  (polled @ 09:45:57 ET)
+2026-08-31 09:46:12 [INFO] SPY live price: $765.94  (polled @ 09:46:12 ET)
+2026-08-31 09:46:27 [INFO] SPY live price: $765.83  (polled @ 09:46:27 ET)
+2026-08-31 09:46:42 [INFO] SPY live price: $765.82  (polled @ 09:46:42 ET)
+2026-08-31 09:46:51 [INFO] Heartbeat [Mon 09:46 ET] — trade_executed=False  open_attempted=True  |  OPEN ATTEMPT IN PROGRESS  |  CLOSE in 05h53m08s
+2026-08-31 09:46:57 [INFO] SPY live price: $765.89  (polled @ 09:46:57 ET)
+2026-08-31 09:47:13 [INFO] SPY live price: $765.89  (polled @ 09:47:13 ET)
+2026-08-31 09:47:28 [INFO] SPY live price: $765.89  (polled @ 09:47:28 ET)
+2026-08-31 09:47:43 [INFO] SPY live price: $765.89  (polled @ 09:47:43 ET)
+2026-08-31 09:47:58 [INFO] SPY live price: $765.89  (polled @ 09:47:58 ET)
+2026-08-31 09:48:13 [INFO] SPY live price: $765.89  (polled @ 09:48:13 ET)
+2026-08-31 09:48:28 [INFO] SPY live price: $765.89  (polled @ 09:48:28 ET)
+2026-08-31 09:48:44 [INFO] SPY live price: $765.89  (polled @ 09:48:44 ET)
+2026-08-31 09:48:59 [INFO] SPY live price: $765.89  (polled @ 09:48:59 ET)
+2026-08-31 09:49:14 [INFO] SPY live price: $765.89  (polled @ 09:49:14 ET)
+2026-08-31 09:49:29 [INFO] SPY live price: $765.89  (polled @ 09:49:29 ET)
+2026-08-31 09:49:44 [INFO] SPY live price: $766.08  (polled @ 09:49:44 ET)
+2026-08-31 09:49:59 [INFO] SPY live price: $766.12  (polled @ 09:49:59 ET)
+2026-08-31 09:50:14 [INFO] SPY live price: $766.19  (polled @ 09:50:14 ET)
+2026-08-31 09:50:30 [INFO] SPY live price: $766.17  (polled @ 09:50:30 ET)
+2026-08-31 09:50:45 [INFO] SPY live price: $766.13  (polled @ 09:50:45 ET)
+2026-08-31 09:51:00 [INFO] SPY live price: $765.95  (polled @ 09:51:00 ET)
+2026-08-31 09:51:15 [INFO] SPY live price: $765.91  (polled @ 09:51:15 ET)
+2026-08-31 09:51:30 [INFO] SPY live price: $766.07  (polled @ 09:51:30 ET)
+2026-08-31 09:51:45 [INFO] SPY live price: $766.24  (polled @ 09:51:45 ET)
+2026-08-31 09:51:51 [INFO] Heartbeat [Mon 09:51 ET] — trade_executed=False  open_attempted=True  |  OPEN ATTEMPT IN PROGRESS  |  CLOSE in 05h48m08s
+2026-08-31 09:52:01 [INFO] SPY live price: $766.38  (polled @ 09:52:01 ET)
+2026-08-31 09:52:16 [INFO] SPY live price: $766.13  (polled @ 09:52:16 ET)
+2026-08-31 09:52:31 [INFO] SPY live price: $765.93  (polled @ 09:52:31 ET)
+2026-08-31 09:52:46 [INFO] SPY live price: $765.92  (polled @ 09:52:46 ET)
+2026-08-31 09:53:01 [INFO] SPY live price: $765.93  (polled @ 09:53:01 ET)
+2026-08-31 09:53:16 [INFO] SPY live price: $766.03  (polled @ 09:53:16 ET)
+2026-08-31 09:53:32 [INFO] SPY live price: $766.01  (polled @ 09:53:32 ET)
+2026-08-31 09:53:47 [INFO] SPY live price: $766.25  (polled @ 09:53:47 ET)
+2026-08-31 09:54:02 [INFO] SPY live price: $766.33  (polled @ 09:54:02 ET)
+2026-08-31 09:54:10 [INFO] Shutdown signal received — exiting cleanly.
+2026-08-31 09:54:10 [INFO] Iron Butterfly SPY (Weekly Dynamic Live) scheduler stopped.
+2026-08-31 09:54:10 [INFO] ═══ Iron Butterfly SPY: OPEN ═══
+2026-08-31 09:54:10 [INFO] Open attempt finished: skip_shutdown
+2026-08-31 09:54:10 [INFO] Exiting.

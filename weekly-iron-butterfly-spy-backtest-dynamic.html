@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <div id="ga-script-head-placeholder"></div>
+  <meta charset="utf-8">
+  <title>SPY Weekly Iron Butterfly Backtest (Dynamic) | AI Velocity</title>
+  <meta content="SPY Weekly Iron Butterfly Backtest with dynamic entry/exit timing — 2024-01-01 to 2026-08-30" name="description">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <link href="/css/normalize.css" rel="stylesheet">
+  <link href="/css/navbar.css" rel="stylesheet">
+  <link href="/fonts/fonts.css" rel="stylesheet">
+  <style>
+    :root {
+      --success:        #10b981;
+      --success-dark:   #059669;
+      --warning:        #f59e0b;
+      --danger:         #ef4444;
+      --bg:             #040911;
+      --bg-card:        #0D1525;
+      --bg-code:        #0a1628;
+      --text-primary:   #ffffff;
+      --text-secondary: #A0ABBE;
+      --border:         rgba(139, 92, 246, 0.2);
+      --accent:         #7c3aed;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text-primary); font-family: 'Inter', sans-serif; line-height: 1.6; }
+    a { color: var(--accent); text-decoration: none; }
+    .backtest-container { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .backtest-hero { text-align: center; padding: 2rem 2.5rem; margin-bottom: 2rem; }
+    .backtest-hero h1 { font-family: 'IBM Plex Serif', serif; font-size: 2.4rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .subtitle { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1.25rem; }
+    .badge { background: rgba(255,255,255,0.15); color: white; padding: 0.4rem 1rem; border-radius: 4px; font-size: 0.82rem; font-weight: 600; }
+    .badge-report   { background: rgba(245,158,11,0.25); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); cursor: pointer; }
+    .badge-add      { background: rgba(16,185,129,0.25); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); cursor: pointer; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1.25rem; margin-bottom: 2rem; }
+    .stat-card { background: var(--bg-card); border: 2px solid var(--border); border-radius: 14px; padding: 1.4rem 1.25rem; text-align: center; transition: transform 0.2s, box-shadow 0.2s; }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+    .stat-card.highlight { background: linear-gradient(135deg, var(--success-dark), var(--success)); border: none; }
+    .stat-card.highlight-loss { background: linear-gradient(135deg, #dc2626, var(--danger)); border: none; }
+    .stat-card .lbl { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.4rem; }
+    .stat-card.highlight .lbl, .stat-card.highlight-loss .lbl { color: rgba(255,255,255,0.8); }
+    .stat-card .val { font-family: 'IBM Plex Mono', monospace; font-size: 1.85rem; font-weight: 700; color: var(--text-primary); }
+    .stat-card.highlight .val, .stat-card.highlight-loss .val { color: white; }
+    .stat-card .sub { font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem; }
+    .stat-card.highlight .sub, .stat-card.highlight-loss .sub { color: rgba(255,255,255,0.7); }
+    .val.positive { color: var(--success); }
+    .val.negative { color: var(--danger); }
+    .section { background: var(--bg-card); border: 2px solid var(--border); border-radius: 16px; padding: 2rem; margin-bottom: 2rem; animation: fadeIn 0.4s ease-out; }
+    .section h2 { font-family: 'IBM Plex Serif', serif; font-size: 1.4rem; font-weight: 600; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
+    .section h3 { font-family: 'IBM Plex Serif', serif; font-size: 1.05rem; font-weight: 500; margin: 1.5rem 0 0.75rem; color: var(--text-secondary); }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+    .config-box { background: var(--bg-code); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border); }
+    .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+    .config-item { text-align: center; }
+    .config-item .lbl { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+    .config-item .val { font-family: 'IBM Plex Mono', monospace; font-size: 1.15rem; font-weight: 600; color: #a78bfa; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.7rem 0.9rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+    th { background: var(--bg-code); color: var(--text-secondary); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+    td { color: var(--text-primary); font-family: 'IBM Plex Mono', monospace; }
+    tr:hover td { background: rgba(124,58,237,0.05); }
+    .win-row  td { border-left: 3px solid var(--success); }
+    .loss-row td { border-left: 3px solid var(--danger); }
+    .positive { color: var(--success) !important; font-weight: 600; }
+    .negative { color: var(--danger)  !important; font-weight: 600; }
+    .progress-container { margin: 0.9rem 0; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 0.87rem; margin-bottom: 0.4rem; color: var(--text-primary); }
+    .progress-bar { height: 22px; background: var(--bg-code); border-radius: 11px; overflow: hidden; border: 1px solid var(--border); }
+    .progress-fill { height: 100%; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; color: white; }
+    .progress-fill.win  { background: linear-gradient(90deg, var(--success-dark), var(--success)); }
+    .progress-fill.loss { background: linear-gradient(90deg, #dc2626, var(--danger)); }
+    .risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    .risk-card { background: var(--bg-code); border-radius: 12px; padding: 1.25rem; text-align: center; border: 1px solid var(--border); }
+    .risk-card h4 { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-weight: 500; }
+    .risk-card .val { font-family: 'IBM Plex Mono', monospace; font-size: 1.45rem; font-weight: 700; }
+    .alert { padding: 1rem 1.25rem; border-radius: 12px; margin: 0.85rem 0; display: flex; align-items: flex-start; gap: 1rem; }
+    .alert-success { background: rgba(16,185,129,0.1); border: 1px solid var(--success); }
+    .alert-warning  { background: rgba(245,158,11,0.1); border: 1px solid var(--warning); }
+    .alert-danger   { background: rgba(239,68,68,0.1);  border: 1px solid var(--danger); }
+    .alert-icon { font-size: 1.4rem; line-height: 1; }
+    .alert-content h4 { font-family: 'IBM Plex Serif', serif; margin-bottom: 0.25rem; font-size: 0.97rem; }
+    .alert-content p  { font-size: 0.86rem; color: var(--text-secondary); margin: 0; }
+    .chart-wrap { background: var(--bg-code); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border); overflow-x: auto; }
+    svg.equity-chart { width: 100%; height: 260px; display: block; }
+    .table-scroll { overflow-x: auto; }
+    .footer { text-align: center; padding: 2rem 1rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border); margin-top: 1rem; }
+    .footer p { margin: 0.4rem 0; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 600px) { .backtest-hero h1 { font-size: 1.6rem; } .stat-card .val { font-size: 1.4rem; } }
+    #trade-log-mobile-notice { display: none; padding: 1.5rem; text-align: center; color: var(--text-secondary); font-size: 0.95rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+    .is-mobile #trade-log-section > :not(#trade-log-mobile-notice) { display: none; }
+    .is-mobile #trade-log-mobile-notice { display: block; }
+  </style>
+  <script>if(/Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){document.documentElement.classList.add('is-mobile');}</script>
+  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  })(window,document,'script','dataLayer','GTM-WCG69XDQ');</script>
+  <!-- End Google Tag Manager -->
+</head>
+
+<body>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WCG69XDQ" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <div id="nav-placeholder"></div>
+
+  <div class="backtest-container">
+
+    <header class="backtest-hero">
+      <h1>Weekly Iron Butterfly SPY (Dynamic)</h1>
+      <div class="subtitle">
+        <a href="/strategies.html" style="text-decoration:none;"><span class="badge badge-report">&#x1F4CA; Strategies</span></a>
+        <a href="/strategy-descriptions/weekly-iron-butterfly-SPY.html" style="text-decoration:none;"><span class="badge badge-report">&#x1F4CA; Performance Report</span></a>
+        <a href="/add_strategy.html?strategy=1018" style="text-decoration:none;"><span class="badge badge-add">&#x2795; Add to My Account</span></a>
+      </div>
+    </header>
+
+    <div class="stats-grid">
+      <div class="stat-card highlight">
+        <div class="lbl">Total P&amp;L</div>
+        <div class="val">+$271,400</div>
+        <div class="sub">2024-01-01 → 2026-08-30</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Win Rate</div>
+        <div class="val">59.8%</div>
+        <div class="sub">58 wins / 39 losses</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Total Trades</div>
+        <div class="val">97</div>
+        <div class="sub">Weekly entries</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Avg P&amp;L / Trade</div>
+        <div class="val positive">+$2,798</div>
+        <div class="sub">Per trade average</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Avg P&amp;L / Day</div>
+        <div class="val positive">+$407</div>
+        <div class="sub">Across 667 trading days</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Avg Annual Profit</div>
+        <div class="val positive">+$102,538</div>
+        <div class="sub">Avg daily P&amp;L &times; 252</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Capital Required</div>
+        <div class="val">$37,776</div>
+        <div class="sub">Avg max loss / trade</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Avg Annual Return</div>
+        <div class="val positive">271.4%</div>
+        <div class="sub">Annual profit / avg capital</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Profit Factor</div>
+        <div class="val">1.44</div>
+        <div class="sub">Gross wins / gross losses</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Sharpe Ratio</div>
+        <div class="val">1.06</div>
+        <div class="sub">Weekly × √52 annualised</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Max Drawdown</div>
+        <div class="val negative">$90,700</div>
+        <div class="sub">Peak-to-trough equity</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Payoff Ratio</div>
+        <div class="val">0.97x</div>
+        <div class="sub">Avg win / avg loss</div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Contracts / Leg</div>
+        <div class="val">100</div>
+        <div class="sub">400 total contracts · 38800 across all trades</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <h2>📈 Equity Curve</h2>
+      <div class="chart-wrap">
+        <svg class="equity-chart" viewBox="0 0 1000 240" preserveAspectRatio="none" id="equity-svg"></svg>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>⚙️ Strategy Configuration</h2>
+      <div class="config-box">
+        <div class="config-grid">
+          <div class="config-item"><div class="lbl">Ticker</div><div class="val">SPY</div></div>
+          <div class="config-item"><div class="lbl">Contracts</div><div class="val">100</div></div>
+          <div class="config-item"><div class="lbl">Structure</div><div class="val">4-Leg IBF</div></div>
+          <div class="config-item"><div class="lbl">Wing Width</div><div class="val">$10</div></div>
+          <div class="config-item"><div class="lbl">Max Credit %</div><div class="val">off</div></div>
+          <div class="config-item"><div class="lbl">Max Prior Wk Range</div><div class="val">off</div></div>
+          <div class="config-item"><div class="lbl">Max Mon Gap</div><div class="val">0.8%</div></div>
+          <div class="config-item"><div class="lbl">Breach Fraction</div><div class="val">1.0</div></div>
+          <div class="config-item"><div class="lbl">Profit Target</div><div class="val">+90%</div></div>
+          <div class="config-item"><div class="lbl">Stop Loss</div><div class="val">-80%</div></div>
+          <div class="config-item"><div class="lbl">Entry Day</div><div class="val">Monday</div></div>
+          <div class="config-item"><div class="lbl">Entry Window</div><div class="val">9:35-10:00 ET</div></div>
+          <div class="config-item"><div class="lbl">Exit Cutoff</div><div class="val">Thu 15:00 ET</div></div>
+          <div class="config-item"><div class="lbl">Expiry</div><div class="val">Next Friday</div></div>
+          <div class="config-item"><div class="lbl">ATM Rounding</div><div class="val">$1</div></div>
+          <div class="config-item"><div class="lbl">Pricing Model</div><div class="val">OPRA Bars</div></div>
+        </div>
+      </div>
+      <h3>Strike Construction</h3>
+      <table>
+        <thead><tr><th>Leg</th><th>Strike</th><th>Action</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>Long Put</td><td>ATM − $10</td><td class="negative">Buy</td><td>Lower wing — defines max loss on downside</td></tr>
+          <tr><td>Short Put</td><td>ATM</td><td class="positive">Sell</td><td>ATM body — highest premium collection</td></tr>
+          <tr><td>Short Call</td><td>ATM</td><td class="positive">Sell</td><td>ATM body — highest premium collection</td></tr>
+          <tr><td>Long Call</td><td>ATM + $10</td><td class="negative">Buy</td><td>Upper wing — defines max loss on upside</td></tr>
+        </tbody>
+      </table>
+      <h3>P&amp;L Mechanics</h3>
+      <table>
+        <tr><td>Net credit at entry</td><td class="positive">Max profit = credit × 100 × 100  (SPY pins exactly at ATM)</td></tr>
+        <tr><td>SPY moves more than $10 from ATM</td><td class="negative">Max loss = ($10 − credit) × 100 × 100</td></tr>
+        <tr><td>Avg net credit collected</td><td>$6.2224 / share (62.2% of wing width)</td></tr>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>📊 Win / Loss Analysis</h2>
+      <div class="two-col">
+        <div>
+          <h3>Win Rate Breakdown</h3>
+          <div class="progress-container">
+            <div class="progress-label"><span>Winners (58)</span><span>59.8%</span></div>
+            <div class="progress-bar"><div class="progress-fill win" style="width:59.8%">59.8%</div></div>
+          </div>
+          <div class="progress-container">
+            <div class="progress-label"><span>Losers (39)</span><span>40.2%</span></div>
+            <div class="progress-bar"><div class="progress-fill loss" style="width:40.2%">40.2%</div></div>
+          </div>
+        </div>
+        <div>
+          <h3>P&amp;L Breakdown</h3>
+          <table>
+            <tr><td>Average winner</td><td class="positive">+$15,252</td></tr>
+            <tr><td>Average loser</td><td class="negative">$-15,723</td></tr>
+            <tr><td>Best trade</td><td class="positive">+$69,400 (2025-04-28)</td></tr>
+            <tr><td>Worst trade</td><td class="negative">$-47,700 (2024-07-01)</td></tr>
+            <tr><td>Total gross wins</td><td class="positive">+$884,600</td></tr>
+            <tr><td>Total gross losses</td><td class="negative">$-613,200</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>⚠️ Risk Assessment</h2>
+      <div class="risk-grid">
+        <div class="risk-card"><h4>Max Drawdown</h4><div class="val negative">$90,700</div></div>
+        <div class="risk-card"><h4>Worst Single Loss</h4><div class="val negative">$-47,700</div></div>
+        <div class="risk-card"><h4>Avg Max Loss / Trade</h4><div class="val">$37,776</div></div>
+        <div class="risk-card"><h4>Profit Factor</h4><div class="val">1.44</div></div>
+        <div class="risk-card"><h4>Sharpe (Annualised)</h4><div class="val">1.06</div></div>
+        <div class="risk-card"><h4>Payoff Ratio</h4><div class="val">0.97x</div></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>💡 Key Insights</h2>
+      <div class="alert alert-success"><span class="alert-icon">✅</span><div class="alert-content"><h4>Profitable Strategy</h4><p>Total P&L of +$271,400 over 97 trades. Dynamic entry/exit timing (quietest Monday minute, wing-breach exit, Thursday 15:00 ET cutoff) replaces the fixed clock times of the original weekly script.</p></div></div>
+      <div class="alert alert-warning">
+        <span class="alert-icon">⚠️</span>
+        <div class="alert-content">
+          <h4>Model Limitations</h4>
+          <p>No commissions, slippage, or pin risk modelled. Entry/exit timing is derived solely from SPY's realized 1-min price bars (backtests/underlying-tickers/SPY.csv), not option Greeks.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="trade-log-section">
+      <div id="trade-log-mobile-notice"><p>📋 Full Trade Log is not displayed on mobile devices to prevent page freezing. View this report on a desktop browser to see all 97 trades.</p></div>
+      <h2>📋 Full Trade Log (97 trades)</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Monday</th><th>Exit Date</th><th>Entry</th><th>Exit</th><th>Expiry</th>
+              <th>SPY Open</th><th>SPY Exit</th><th>ATM</th><th>LP / SP / SC / LC</th>
+              <th>Credit Open</th><th>Credit Close</th><th>P&amp;L</th><th>Cum P&amp;L</th><th>Exit Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+
+        <tr class="win-row">
+          <td>2024-01-22</td>
+          <td>2024-01-25</td>
+          <td>09:51</td>
+          <td>15:00</td>
+          <td>2024-01-26</td>
+          <td>$484.87</td>
+          <td>$486.58</td>
+          <td>485</td>
+          <td>475/485/485/495</td>
+          <td>$4.2700</td>
+          <td>$2.9700</td>
+          <td class="positive">+$13,000</td>
+          <td class="positive">+$13,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-01-29</td>
+          <td>2024-02-01</td>
+          <td>09:54</td>
+          <td>15:00</td>
+          <td>2024-02-02</td>
+          <td>$487.94</td>
+          <td>$488.46</td>
+          <td>488</td>
+          <td>478/488/488/498</td>
+          <td>$5.6400</td>
+          <td>$3.7500</td>
+          <td class="positive">+$18,900</td>
+          <td class="positive">+$31,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-02-12</td>
+          <td>2024-02-13</td>
+          <td>09:59</td>
+          <td>15:04</td>
+          <td>2024-02-16</td>
+          <td>$501.41</td>
+          <td>$491.06</td>
+          <td>501</td>
+          <td>491/501/501/511</td>
+          <td>$5.0300</td>
+          <td>$7.6800</td>
+          <td class="negative">$-26,500</td>
+          <td class="positive">+$5,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-02-26</td>
+          <td>2024-02-29</td>
+          <td>09:42</td>
+          <td>15:00</td>
+          <td>2024-03-01</td>
+          <td>$508.52</td>
+          <td>$507.85</td>
+          <td>509</td>
+          <td>499/509/509/519</td>
+          <td>$4.8500</td>
+          <td>$2.7700</td>
+          <td class="positive">+$20,800</td>
+          <td class="positive">+$26,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-03-04</td>
+          <td>2024-03-07</td>
+          <td>09:57</td>
+          <td>15:00</td>
+          <td>2024-03-08</td>
+          <td>$512.54</td>
+          <td>$514.32</td>
+          <td>513</td>
+          <td>503/513/513/523</td>
+          <td>$4.9900</td>
+          <td>$4.0100</td>
+          <td class="positive">+$9,800</td>
+          <td class="positive">+$36,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-03-11</td>
+          <td>2024-03-14</td>
+          <td>09:44</td>
+          <td>15:00</td>
+          <td>2024-03-15</td>
+          <td>$510.53</td>
+          <td>$513.58</td>
+          <td>511</td>
+          <td>501/511/511/521</td>
+          <td>$5.9000</td>
+          <td>$4.4600</td>
+          <td class="positive">+$14,400</td>
+          <td class="positive">+$50,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-03-25</td>
+          <td>2024-03-28</td>
+          <td>09:39</td>
+          <td>15:00</td>
+          <td>2024-04-05</td>
+          <td>$520.27</td>
+          <td>$524.22</td>
+          <td>520</td>
+          <td>510/520/520/530</td>
+          <td>$5.9800</td>
+          <td>$5.7500</td>
+          <td class="positive">+$2,300</td>
+          <td class="positive">+$52,700</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-04-01</td>
+          <td>2024-04-04</td>
+          <td>09:54</td>
+          <td>15:00</td>
+          <td>2024-04-05</td>
+          <td>$523.95</td>
+          <td>$514.97</td>
+          <td>524</td>
+          <td>514/524/524/534</td>
+          <td>$4.8100</td>
+          <td>$7.9500</td>
+          <td class="negative">$-31,400</td>
+          <td class="positive">+$21,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-04-08</td>
+          <td>2024-04-11</td>
+          <td>09:58</td>
+          <td>15:00</td>
+          <td>2024-04-12</td>
+          <td>$518.84</td>
+          <td>$518.89</td>
+          <td>519</td>
+          <td>509/519/519/529</td>
+          <td>$5.8900</td>
+          <td>$3.2200</td>
+          <td class="positive">+$26,700</td>
+          <td class="positive">+$48,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-04-22</td>
+          <td>2024-04-25</td>
+          <td>09:55</td>
+          <td>15:00</td>
+          <td>2024-04-26</td>
+          <td>$497.81</td>
+          <td>$502.66</td>
+          <td>498</td>
+          <td>488/498/498/508</td>
+          <td>$6.2300</td>
+          <td>$6.0900</td>
+          <td class="positive">+$1,400</td>
+          <td class="positive">+$49,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-04-29</td>
+          <td>2024-05-02</td>
+          <td>09:56</td>
+          <td>15:00</td>
+          <td>2024-05-03</td>
+          <td>$509.24</td>
+          <td>$505.40</td>
+          <td>509</td>
+          <td>499/509/509/519</td>
+          <td>$6.2200</td>
+          <td>$5.4400</td>
+          <td class="positive">+$7,800</td>
+          <td class="positive">+$57,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-05-06</td>
+          <td>2024-05-09</td>
+          <td>09:49</td>
+          <td>15:00</td>
+          <td>2024-05-10</td>
+          <td>$514.30</td>
+          <td>$519.85</td>
+          <td>514</td>
+          <td>504/514/514/524</td>
+          <td>$4.9800</td>
+          <td>$6.2500</td>
+          <td class="negative">$-12,700</td>
+          <td class="positive">+$44,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-05-13</td>
+          <td>2024-05-16</td>
+          <td>09:55</td>
+          <td>10:50</td>
+          <td>2024-05-17</td>
+          <td>$521.50</td>
+          <td>$530.89</td>
+          <td>521</td>
+          <td>511/521/521/531</td>
+          <td>$5.7500</td>
+          <td>$6.3600</td>
+          <td class="negative">$-6,100</td>
+          <td class="positive">+$38,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-05-20</td>
+          <td>2024-05-23</td>
+          <td>09:46</td>
+          <td>15:00</td>
+          <td>2024-05-24</td>
+          <td>$530.28</td>
+          <td>$525.16</td>
+          <td>530</td>
+          <td>520/530/530/540</td>
+          <td>$5.1300</td>
+          <td>$4.3200</td>
+          <td class="positive">+$8,100</td>
+          <td class="positive">+$46,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-06-03</td>
+          <td>2024-06-06</td>
+          <td>09:39</td>
+          <td>15:00</td>
+          <td>2024-06-07</td>
+          <td>$528.72</td>
+          <td>$534.42</td>
+          <td>529</td>
+          <td>519/529/529/539</td>
+          <td>$5.1700</td>
+          <td>$5.7000</td>
+          <td class="negative">$-5,300</td>
+          <td class="positive">+$41,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-06-10</td>
+          <td>2024-06-12</td>
+          <td>09:55</td>
+          <td>10:14</td>
+          <td>2024-06-14</td>
+          <td>$532.89</td>
+          <td>$543.13</td>
+          <td>533</td>
+          <td>523/533/533/543</td>
+          <td>$6.2500</td>
+          <td>$6.3600</td>
+          <td class="negative">$-1,100</td>
+          <td class="positive">+$40,100</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-06-17</td>
+          <td>2024-06-20</td>
+          <td>09:39</td>
+          <td>15:00</td>
+          <td>2024-06-21</td>
+          <td>$542.20</td>
+          <td>$547.09</td>
+          <td>542</td>
+          <td>532/542/542/552</td>
+          <td>$4.9200</td>
+          <td>$5.1500</td>
+          <td class="negative">$-2,300</td>
+          <td class="positive">+$37,800</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-06-24</td>
+          <td>2024-06-27</td>
+          <td>09:39</td>
+          <td>15:00</td>
+          <td>2024-06-28</td>
+          <td>$544.39</td>
+          <td>$545.38</td>
+          <td>544</td>
+          <td>534/544/544/554</td>
+          <td>$5.6700</td>
+          <td>$3.5400</td>
+          <td class="positive">+$21,300</td>
+          <td class="positive">+$59,100</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-07-01</td>
+          <td>2024-07-05</td>
+          <td>09:56</td>
+          <td>13:33</td>
+          <td>2024-07-05</td>
+          <td>$544.43</td>
+          <td>$554.02</td>
+          <td>544</td>
+          <td>534/544/544/554</td>
+          <td>$5.0200</td>
+          <td>$9.7900</td>
+          <td class="negative">$-47,700</td>
+          <td class="positive">+$11,400</td>
+          <td>stop_loss_80pct</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-07-08</td>
+          <td>2024-07-11</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2024-07-12</td>
+          <td>$555.88</td>
+          <td>$557.24</td>
+          <td>556</td>
+          <td>546/556/556/566</td>
+          <td>$4.9300</td>
+          <td>$2.7700</td>
+          <td class="positive">+$21,600</td>
+          <td class="positive">+$33,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-07-15</td>
+          <td>2024-07-18</td>
+          <td>09:59</td>
+          <td>14:39</td>
+          <td>2024-07-19</td>
+          <td>$561.75</td>
+          <td>$551.87</td>
+          <td>562</td>
+          <td>552/562/562/572</td>
+          <td>$5.2200</td>
+          <td>$7.4900</td>
+          <td class="negative">$-22,700</td>
+          <td class="positive">+$10,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-07-22</td>
+          <td>2024-07-24</td>
+          <td>09:44</td>
+          <td>14:42</td>
+          <td>2024-07-26</td>
+          <td>$553.43</td>
+          <td>$542.92</td>
+          <td>553</td>
+          <td>543/553/553/563</td>
+          <td>$5.7600</td>
+          <td>$8.1100</td>
+          <td class="negative">$-23,500</td>
+          <td class="negative">$-13,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-07-29</td>
+          <td>2024-08-01</td>
+          <td>09:43</td>
+          <td>15:00</td>
+          <td>2024-08-02</td>
+          <td>$545.54</td>
+          <td>$540.01</td>
+          <td>546</td>
+          <td>536/546/546/556</td>
+          <td>$7.1900</td>
+          <td>$6.8100</td>
+          <td class="positive">+$3,800</td>
+          <td class="negative">$-9,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-08-12</td>
+          <td>2024-08-13</td>
+          <td>10:00</td>
+          <td>12:50</td>
+          <td>2024-08-16</td>
+          <td>$531.44</td>
+          <td>$540.97</td>
+          <td>531</td>
+          <td>521/531/531/541</td>
+          <td>$7.5100</td>
+          <td>$9.7300</td>
+          <td class="negative">$-22,200</td>
+          <td class="negative">$-31,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-08-19</td>
+          <td>2024-08-22</td>
+          <td>09:51</td>
+          <td>15:00</td>
+          <td>2024-08-23</td>
+          <td>$555.10</td>
+          <td>$556.29</td>
+          <td>555</td>
+          <td>545/555/555/565</td>
+          <td>$5.8400</td>
+          <td>$4.8100</td>
+          <td class="positive">+$10,300</td>
+          <td class="negative">$-21,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-08-26</td>
+          <td>2024-08-29</td>
+          <td>10:00</td>
+          <td>15:00</td>
+          <td>2024-08-30</td>
+          <td>$563.02</td>
+          <td>$557.78</td>
+          <td>563</td>
+          <td>553/563/563/573</td>
+          <td>$6.2600</td>
+          <td>$4.5500</td>
+          <td class="positive">+$17,100</td>
+          <td class="negative">$-4,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-09-16</td>
+          <td>2024-09-19</td>
+          <td>09:42</td>
+          <td>09:30</td>
+          <td>2024-09-20</td>
+          <td>$560.97</td>
+          <td>$570.64</td>
+          <td>561</td>
+          <td>551/561/561/571</td>
+          <td>$6.9100</td>
+          <td>$7.9900</td>
+          <td class="negative">$-10,800</td>
+          <td class="negative">$-15,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-09-23</td>
+          <td>2024-09-26</td>
+          <td>09:42</td>
+          <td>15:00</td>
+          <td>2024-09-27</td>
+          <td>$568.87</td>
+          <td>$572.17</td>
+          <td>569</td>
+          <td>559/569/569/579</td>
+          <td>$5.3300</td>
+          <td>$4.2300</td>
+          <td class="positive">+$11,000</td>
+          <td class="negative">$-4,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-09-30</td>
+          <td>2024-10-03</td>
+          <td>09:49</td>
+          <td>15:00</td>
+          <td>2024-10-04</td>
+          <td>$571.14</td>
+          <td>$566.57</td>
+          <td>571</td>
+          <td>561/571/571/581</td>
+          <td>$6.6900</td>
+          <td>$4.9300</td>
+          <td class="positive">+$17,600</td>
+          <td class="positive">+$13,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-10-07</td>
+          <td>2024-10-10</td>
+          <td>09:43</td>
+          <td>15:00</td>
+          <td>2024-10-11</td>
+          <td>$571.25</td>
+          <td>$575.32</td>
+          <td>571</td>
+          <td>561/571/571/581</td>
+          <td>$6.5300</td>
+          <td>$5.9000</td>
+          <td class="positive">+$6,300</td>
+          <td class="positive">+$19,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-10-14</td>
+          <td>2024-10-17</td>
+          <td>09:55</td>
+          <td>15:00</td>
+          <td>2024-10-18</td>
+          <td>$582.76</td>
+          <td>$583.25</td>
+          <td>583</td>
+          <td>573/583/583/593</td>
+          <td>$5.5600</td>
+          <td>$2.8700</td>
+          <td class="positive">+$26,900</td>
+          <td class="positive">+$46,800</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-10-21</td>
+          <td>2024-10-24</td>
+          <td>09:52</td>
+          <td>15:00</td>
+          <td>2024-10-25</td>
+          <td>$584.23</td>
+          <td>$578.66</td>
+          <td>584</td>
+          <td>574/584/584/594</td>
+          <td>$5.2200</td>
+          <td>$4.0800</td>
+          <td class="positive">+$11,400</td>
+          <td class="positive">+$58,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-10-28</td>
+          <td>2024-10-31</td>
+          <td>09:46</td>
+          <td>10:28</td>
+          <td>2024-11-01</td>
+          <td>$581.64</td>
+          <td>$571.97</td>
+          <td>582</td>
+          <td>572/582/582/592</td>
+          <td>$6.5600</td>
+          <td>$9.5400</td>
+          <td class="negative">$-29,800</td>
+          <td class="positive">+$28,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-11-04</td>
+          <td>2024-11-06</td>
+          <td>09:49</td>
+          <td>09:30</td>
+          <td>2024-11-08</td>
+          <td>$571.38</td>
+          <td>$587.95</td>
+          <td>571</td>
+          <td>561/571/571/581</td>
+          <td>$8.1600</td>
+          <td>$9.1200</td>
+          <td class="negative">$-9,600</td>
+          <td class="positive">+$18,800</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-11-11</td>
+          <td>2024-11-14</td>
+          <td>09:54</td>
+          <td>15:00</td>
+          <td>2024-11-15</td>
+          <td>$599.38</td>
+          <td>$594.47</td>
+          <td>599</td>
+          <td>589/599/599/609</td>
+          <td>$5.5400</td>
+          <td>$4.2700</td>
+          <td class="positive">+$12,700</td>
+          <td class="positive">+$31,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-11-18</td>
+          <td>2024-11-21</td>
+          <td>09:56</td>
+          <td>15:00</td>
+          <td>2024-11-22</td>
+          <td>$585.68</td>
+          <td>$594.66</td>
+          <td>586</td>
+          <td>576/586/586/596</td>
+          <td>$6.2700</td>
+          <td>$6.9100</td>
+          <td class="negative">$-6,400</td>
+          <td class="positive">+$25,100</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-11-25</td>
+          <td>2024-11-29</td>
+          <td>09:43</td>
+          <td>14:59</td>
+          <td>2024-11-29</td>
+          <td>$600.74</td>
+          <td>$602.60</td>
+          <td>601</td>
+          <td>591/601/601/611</td>
+          <td>$4.6200</td>
+          <td>$1.4400</td>
+          <td class="positive">+$31,800</td>
+          <td class="positive">+$56,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-12-02</td>
+          <td>2024-12-05</td>
+          <td>09:55</td>
+          <td>15:00</td>
+          <td>2024-12-06</td>
+          <td>$602.89</td>
+          <td>$607.09</td>
+          <td>603</td>
+          <td>593/603/603/613</td>
+          <td>$5.4700</td>
+          <td>$4.1400</td>
+          <td class="positive">+$13,300</td>
+          <td class="positive">+$70,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2024-12-09</td>
+          <td>2024-12-12</td>
+          <td>10:00</td>
+          <td>15:00</td>
+          <td>2024-12-13</td>
+          <td>$607.48</td>
+          <td>$605.07</td>
+          <td>607</td>
+          <td>597/607/607/617</td>
+          <td>$4.8000</td>
+          <td>$2.6700</td>
+          <td class="positive">+$21,300</td>
+          <td class="positive">+$91,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-12-16</td>
+          <td>2024-12-18</td>
+          <td>09:39</td>
+          <td>15:03</td>
+          <td>2024-12-20</td>
+          <td>$605.76</td>
+          <td>$595.68</td>
+          <td>606</td>
+          <td>596/606/606/616</td>
+          <td>$5.4000</td>
+          <td>$7.7500</td>
+          <td class="negative">$-23,500</td>
+          <td class="positive">+$68,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2024-12-23</td>
+          <td>2024-12-24</td>
+          <td>09:53</td>
+          <td>10:36</td>
+          <td>2024-12-27</td>
+          <td>$589.44</td>
+          <td>$598.74</td>
+          <td>589</td>
+          <td>579/589/589/599</td>
+          <td>$6.6600</td>
+          <td>$8.7600</td>
+          <td class="negative">$-21,000</td>
+          <td class="positive">+$47,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-01-13</td>
+          <td>2025-01-15</td>
+          <td>09:41</td>
+          <td>09:30</td>
+          <td>2025-01-17</td>
+          <td>$575.70</td>
+          <td>$590.03</td>
+          <td>576</td>
+          <td>566/576/576/586</td>
+          <td>$7.3800</td>
+          <td>$8.7500</td>
+          <td class="negative">$-13,700</td>
+          <td class="positive">+$33,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-02-10</td>
+          <td>2025-02-13</td>
+          <td>10:00</td>
+          <td>15:00</td>
+          <td>2025-02-14</td>
+          <td>$603.51</td>
+          <td>$608.90</td>
+          <td>604</td>
+          <td>594/604/604/614</td>
+          <td>$6.2800</td>
+          <td>$6.2700</td>
+          <td class="positive">+$100</td>
+          <td class="positive">+$33,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-02-24</td>
+          <td>2025-02-25</td>
+          <td>09:42</td>
+          <td>10:25</td>
+          <td>2025-02-28</td>
+          <td>$601.21</td>
+          <td>$591.57</td>
+          <td>601</td>
+          <td>591/601/601/611</td>
+          <td>$7.0200</td>
+          <td>$7.4400</td>
+          <td class="negative">$-4,200</td>
+          <td class="positive">+$29,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-03-03</td>
+          <td>2025-03-03</td>
+          <td>09:54</td>
+          <td>15:03</td>
+          <td>2025-03-07</td>
+          <td>$594.11</td>
+          <td>$584.04</td>
+          <td>594</td>
+          <td>584/594/594/604</td>
+          <td>$8.0400</td>
+          <td>$7.5300</td>
+          <td class="positive">+$5,100</td>
+          <td class="positive">+$34,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-03-17</td>
+          <td>2025-03-20</td>
+          <td>09:45</td>
+          <td>15:00</td>
+          <td>2025-03-21</td>
+          <td>$565.90</td>
+          <td>$565.22</td>
+          <td>566</td>
+          <td>556/566/566/576</td>
+          <td>$7.5400</td>
+          <td>$4.8900</td>
+          <td class="positive">+$26,500</td>
+          <td class="positive">+$60,800</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-04-28</td>
+          <td>2025-04-30</td>
+          <td>09:48</td>
+          <td>09:42</td>
+          <td>2025-05-02</td>
+          <td>$553.34</td>
+          <td>$542.90</td>
+          <td>553</td>
+          <td>543/553/553/563</td>
+          <td>$8.0800</td>
+          <td>$1.1400</td>
+          <td class="positive">+$69,400</td>
+          <td class="positive">+$130,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-05-05</td>
+          <td>2025-05-08</td>
+          <td>09:47</td>
+          <td>15:00</td>
+          <td>2025-05-09</td>
+          <td>$562.30</td>
+          <td>$567.88</td>
+          <td>562</td>
+          <td>552/562/562/572</td>
+          <td>$7.9500</td>
+          <td>$5.4400</td>
+          <td class="positive">+$25,100</td>
+          <td class="positive">+$155,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-05-19</td>
+          <td>2025-05-22</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2025-05-23</td>
+          <td>$591.29</td>
+          <td>$585.90</td>
+          <td>591</td>
+          <td>581/591/591/601</td>
+          <td>$6.3200</td>
+          <td>$6.7000</td>
+          <td class="negative">$-3,800</td>
+          <td class="positive">+$151,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-06-02</td>
+          <td>2025-06-05</td>
+          <td>09:45</td>
+          <td>15:00</td>
+          <td>2025-06-06</td>
+          <td>$589.29</td>
+          <td>$595.26</td>
+          <td>589</td>
+          <td>579/589/589/599</td>
+          <td>$6.7900</td>
+          <td>$6.2900</td>
+          <td class="positive">+$5,000</td>
+          <td class="positive">+$156,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-06-09</td>
+          <td>2025-06-12</td>
+          <td>09:55</td>
+          <td>15:00</td>
+          <td>2025-06-13</td>
+          <td>$599.41</td>
+          <td>$603.28</td>
+          <td>599</td>
+          <td>589/599/599/609</td>
+          <td>$6.3600</td>
+          <td>$5.5200</td>
+          <td class="positive">+$8,400</td>
+          <td class="positive">+$164,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-06-16</td>
+          <td>2025-06-20</td>
+          <td>09:42</td>
+          <td>15:00</td>
+          <td>2025-06-20</td>
+          <td>$601.55</td>
+          <td>$593.64</td>
+          <td>602</td>
+          <td>592/602/602/612</td>
+          <td>$6.8800</td>
+          <td>$7.5300</td>
+          <td class="negative">$-6,500</td>
+          <td class="positive">+$158,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-06-23</td>
+          <td>2025-06-24</td>
+          <td>09:44</td>
+          <td>11:37</td>
+          <td>2025-06-27</td>
+          <td>$595.59</td>
+          <td>$605.98</td>
+          <td>596</td>
+          <td>586/596/596/606</td>
+          <td>$6.0900</td>
+          <td>$8.9400</td>
+          <td class="negative">$-28,500</td>
+          <td class="positive">+$129,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-07-07</td>
+          <td>2025-07-10</td>
+          <td>09:57</td>
+          <td>15:00</td>
+          <td>2025-07-11</td>
+          <td>$623.80</td>
+          <td>$626.30</td>
+          <td>624</td>
+          <td>614/624/624/634</td>
+          <td>$6.1900</td>
+          <td>$3.3200</td>
+          <td class="positive">+$28,700</td>
+          <td class="positive">+$158,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-07-14</td>
+          <td>2025-07-17</td>
+          <td>10:00</td>
+          <td>15:00</td>
+          <td>2025-07-18</td>
+          <td>$622.67</td>
+          <td>$628.01</td>
+          <td>623</td>
+          <td>613/623/623/633</td>
+          <td>$5.9300</td>
+          <td>$5.7600</td>
+          <td class="positive">+$1,700</td>
+          <td class="positive">+$160,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-07-21</td>
+          <td>2025-07-24</td>
+          <td>09:44</td>
+          <td>15:00</td>
+          <td>2025-07-25</td>
+          <td>$629.37</td>
+          <td>$635.22</td>
+          <td>629</td>
+          <td>619/629/629/639</td>
+          <td>$4.4700</td>
+          <td>$6.0000</td>
+          <td class="negative">$-15,300</td>
+          <td class="positive">+$145,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-07-28</td>
+          <td>2025-07-31</td>
+          <td>09:52</td>
+          <td>15:00</td>
+          <td>2025-08-01</td>
+          <td>$637.39</td>
+          <td>$634.71</td>
+          <td>637</td>
+          <td>627/637/637/647</td>
+          <td>$6.3400</td>
+          <td>$5.7600</td>
+          <td class="positive">+$5,800</td>
+          <td class="positive">+$150,800</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-08-11</td>
+          <td>2025-08-14</td>
+          <td>09:49</td>
+          <td>15:00</td>
+          <td>2025-08-15</td>
+          <td>$637.54</td>
+          <td>$644.63</td>
+          <td>638</td>
+          <td>628/638/638/648</td>
+          <td>$5.7600</td>
+          <td>$6.8900</td>
+          <td class="negative">$-11,300</td>
+          <td class="positive">+$139,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-08-18</td>
+          <td>2025-08-20</td>
+          <td>09:56</td>
+          <td>10:53</td>
+          <td>2025-08-22</td>
+          <td>$642.99</td>
+          <td>$632.96</td>
+          <td>643</td>
+          <td>633/643/643/653</td>
+          <td>$5.5900</td>
+          <td>$6.2100</td>
+          <td class="negative">$-6,200</td>
+          <td class="positive">+$133,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-08-25</td>
+          <td>2025-08-28</td>
+          <td>09:56</td>
+          <td>15:00</td>
+          <td>2025-08-29</td>
+          <td>$643.78</td>
+          <td>$649.04</td>
+          <td>644</td>
+          <td>634/644/644/654</td>
+          <td>$5.4900</td>
+          <td>$5.4800</td>
+          <td class="positive">+$100</td>
+          <td class="positive">+$133,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-09-08</td>
+          <td>2025-09-11</td>
+          <td>09:45</td>
+          <td>15:00</td>
+          <td>2025-09-12</td>
+          <td>$648.64</td>
+          <td>$657.48</td>
+          <td>649</td>
+          <td>639/649/649/659</td>
+          <td>$5.4300</td>
+          <td>$8.2300</td>
+          <td class="negative">$-28,000</td>
+          <td class="positive">+$105,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-09-15</td>
+          <td>2025-09-18</td>
+          <td>09:56</td>
+          <td>15:00</td>
+          <td>2025-09-19</td>
+          <td>$660.42</td>
+          <td>$663.32</td>
+          <td>660</td>
+          <td>650/660/660/670</td>
+          <td>$6.0600</td>
+          <td>$3.6100</td>
+          <td class="positive">+$24,500</td>
+          <td class="positive">+$129,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-09-22</td>
+          <td>2025-09-25</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2025-09-26</td>
+          <td>$663.38</td>
+          <td>$657.97</td>
+          <td>663</td>
+          <td>653/663/663/673</td>
+          <td>$5.4200</td>
+          <td>$4.8500</td>
+          <td class="positive">+$5,700</td>
+          <td class="positive">+$135,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-09-29</td>
+          <td>2025-10-02</td>
+          <td>09:50</td>
+          <td>15:00</td>
+          <td>2025-10-03</td>
+          <td>$664.64</td>
+          <td>$669.40</td>
+          <td>665</td>
+          <td>655/665/665/675</td>
+          <td>$5.3300</td>
+          <td>$5.3400</td>
+          <td class="negative">$-100</td>
+          <td class="positive">+$135,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-10-06</td>
+          <td>2025-10-09</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2025-10-10</td>
+          <td>$670.11</td>
+          <td>$669.91</td>
+          <td>670</td>
+          <td>660/670/670/680</td>
+          <td>$5.6700</td>
+          <td>$3.2200</td>
+          <td class="positive">+$24,500</td>
+          <td class="positive">+$160,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-10-20</td>
+          <td>2025-10-23</td>
+          <td>09:51</td>
+          <td>15:00</td>
+          <td>2025-10-24</td>
+          <td>$669.18</td>
+          <td>$672.62</td>
+          <td>669</td>
+          <td>659/669/669/679</td>
+          <td>$6.8900</td>
+          <td>$5.0200</td>
+          <td class="positive">+$18,700</td>
+          <td class="positive">+$178,700</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-11-03</td>
+          <td>2025-11-06</td>
+          <td>09:46</td>
+          <td>10:02</td>
+          <td>2025-11-07</td>
+          <td>$683.27</td>
+          <td>$673.12</td>
+          <td>683</td>
+          <td>673/683/683/693</td>
+          <td>$7.1000</td>
+          <td>$7.2000</td>
+          <td class="negative">$-1,000</td>
+          <td class="positive">+$177,700</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-11-17</td>
+          <td>2025-11-17</td>
+          <td>09:55</td>
+          <td>14:39</td>
+          <td>2025-11-21</td>
+          <td>$673.50</td>
+          <td>$664.03</td>
+          <td>674</td>
+          <td>664/674/674/684</td>
+          <td>$7.4100</td>
+          <td>$7.4600</td>
+          <td class="negative">$-500</td>
+          <td class="positive">+$177,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-11-24</td>
+          <td>2025-11-25</td>
+          <td>09:43</td>
+          <td>12:34</td>
+          <td>2025-11-28</td>
+          <td>$664.26</td>
+          <td>$674.11</td>
+          <td>664</td>
+          <td>654/664/664/674</td>
+          <td>$7.1700</td>
+          <td>$9.4200</td>
+          <td class="negative">$-22,500</td>
+          <td class="positive">+$154,700</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-12-01</td>
+          <td>2025-12-04</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2025-12-05</td>
+          <td>$681.25</td>
+          <td>$683.30</td>
+          <td>681</td>
+          <td>671/681/681/691</td>
+          <td>$5.7300</td>
+          <td>$4.3400</td>
+          <td class="positive">+$13,900</td>
+          <td class="positive">+$168,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-12-08</td>
+          <td>2025-12-11</td>
+          <td>10:00</td>
+          <td>15:00</td>
+          <td>2025-12-12</td>
+          <td>$685.42</td>
+          <td>$689.04</td>
+          <td>685</td>
+          <td>675/685/685/695</td>
+          <td>$6.7900</td>
+          <td>$5.2200</td>
+          <td class="positive">+$15,700</td>
+          <td class="positive">+$184,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-12-15</td>
+          <td>2025-12-17</td>
+          <td>09:56</td>
+          <td>13:39</td>
+          <td>2025-12-19</td>
+          <td>$682.77</td>
+          <td>$672.88</td>
+          <td>683</td>
+          <td>673/683/683/693</td>
+          <td>$7.3300</td>
+          <td>$8.4800</td>
+          <td class="negative">$-11,500</td>
+          <td class="positive">+$172,800</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2025-12-22</td>
+          <td>2025-12-26</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2025-12-26</td>
+          <td>$684.01</td>
+          <td>$690.15</td>
+          <td>684</td>
+          <td>674/684/684/694</td>
+          <td>$4.3500</td>
+          <td>$6.0700</td>
+          <td class="negative">$-17,200</td>
+          <td class="positive">+$155,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2025-12-29</td>
+          <td>2026-01-02</td>
+          <td>09:44</td>
+          <td>15:00</td>
+          <td>2026-01-02</td>
+          <td>$688.35</td>
+          <td>$683.21</td>
+          <td>688</td>
+          <td>678/688/688/698</td>
+          <td>$5.0500</td>
+          <td>$4.8900</td>
+          <td class="positive">+$1,600</td>
+          <td class="positive">+$157,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-01-05</td>
+          <td>2026-01-08</td>
+          <td>09:58</td>
+          <td>15:00</td>
+          <td>2026-01-09</td>
+          <td>$686.94</td>
+          <td>$688.77</td>
+          <td>687</td>
+          <td>677/687/687/697</td>
+          <td>$6.0700</td>
+          <td>$5.0000</td>
+          <td class="positive">+$10,700</td>
+          <td class="positive">+$167,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-01-12</td>
+          <td>2026-01-15</td>
+          <td>10:00</td>
+          <td>15:00</td>
+          <td>2026-01-16</td>
+          <td>$693.64</td>
+          <td>$692.58</td>
+          <td>694</td>
+          <td>684/694/694/704</td>
+          <td>$5.9700</td>
+          <td>$3.2500</td>
+          <td class="positive">+$27,200</td>
+          <td class="positive">+$195,100</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-01-26</td>
+          <td>2026-01-29</td>
+          <td>09:56</td>
+          <td>15:00</td>
+          <td>2026-01-30</td>
+          <td>$692.35</td>
+          <td>$691.25</td>
+          <td>692</td>
+          <td>682/692/692/702</td>
+          <td>$6.6700</td>
+          <td>$4.2600</td>
+          <td class="positive">+$24,100</td>
+          <td class="positive">+$219,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-02-02</td>
+          <td>2026-02-04</td>
+          <td>09:55</td>
+          <td>12:36</td>
+          <td>2026-02-06</td>
+          <td>$693.36</td>
+          <td>$682.88</td>
+          <td>693</td>
+          <td>683/693/693/703</td>
+          <td>$6.9300</td>
+          <td>$6.7600</td>
+          <td class="positive">+$1,700</td>
+          <td class="positive">+$220,900</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-02-09</td>
+          <td>2026-02-12</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2026-02-13</td>
+          <td>$690.47</td>
+          <td>$685.35</td>
+          <td>690</td>
+          <td>680/690/690/700</td>
+          <td>$7.1500</td>
+          <td>$5.3400</td>
+          <td class="positive">+$18,100</td>
+          <td class="positive">+$239,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-02-23</td>
+          <td>2026-02-26</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2026-02-27</td>
+          <td>$686.44</td>
+          <td>$689.04</td>
+          <td>686</td>
+          <td>676/686/686/696</td>
+          <td>$7.4800</td>
+          <td>$5.3800</td>
+          <td class="positive">+$21,000</td>
+          <td class="positive">+$260,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-03-02</td>
+          <td>2026-03-03</td>
+          <td>09:56</td>
+          <td>09:45</td>
+          <td>2026-03-06</td>
+          <td>$682.56</td>
+          <td>$674.13</td>
+          <td>683</td>
+          <td>673/683/683/693</td>
+          <td>$8.5400</td>
+          <td>$6.8300</td>
+          <td class="positive">+$17,100</td>
+          <td class="positive">+$277,100</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2026-03-30</td>
+          <td>2026-03-31</td>
+          <td>09:45</td>
+          <td>12:41</td>
+          <td>2026-04-10</td>
+          <td>$637.16</td>
+          <td>$648.89</td>
+          <td>637</td>
+          <td>627/637/637/647</td>
+          <td>$8.5600</td>
+          <td>$10.3100</td>
+          <td class="negative">$-17,500</td>
+          <td class="positive">+$259,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2026-04-06</td>
+          <td>2026-04-08</td>
+          <td>09:55</td>
+          <td>09:30</td>
+          <td>2026-04-10</td>
+          <td>$657.61</td>
+          <td>$676.26</td>
+          <td>658</td>
+          <td>648/658/658/668</td>
+          <td>$7.7300</td>
+          <td>$9.3500</td>
+          <td class="negative">$-16,200</td>
+          <td class="positive">+$243,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2026-04-13</td>
+          <td>2026-04-14</td>
+          <td>09:43</td>
+          <td>09:30</td>
+          <td>2026-04-17</td>
+          <td>$677.17</td>
+          <td>$688.02</td>
+          <td>677</td>
+          <td>667/677/677/687</td>
+          <td>$7.1800</td>
+          <td>$8.3400</td>
+          <td class="negative">$-11,600</td>
+          <td class="positive">+$231,800</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-04-20</td>
+          <td>2026-04-23</td>
+          <td>09:47</td>
+          <td>15:00</td>
+          <td>2026-04-24</td>
+          <td>$708.78</td>
+          <td>$707.27</td>
+          <td>709</td>
+          <td>699/709/709/719</td>
+          <td>$6.9900</td>
+          <td>$4.8200</td>
+          <td class="positive">+$21,700</td>
+          <td class="positive">+$253,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-04-27</td>
+          <td>2026-04-30</td>
+          <td>09:41</td>
+          <td>15:00</td>
+          <td>2026-05-01</td>
+          <td>$714.18</td>
+          <td>$718.60</td>
+          <td>714</td>
+          <td>704/714/714/724</td>
+          <td>$7.2000</td>
+          <td>$6.0100</td>
+          <td class="positive">+$11,900</td>
+          <td class="positive">+$265,400</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2026-05-04</td>
+          <td>2026-05-06</td>
+          <td>09:51</td>
+          <td>10:35</td>
+          <td>2026-05-08</td>
+          <td>$720.54</td>
+          <td>$731.07</td>
+          <td>721</td>
+          <td>711/721/721/731</td>
+          <td>$6.9300</td>
+          <td>$11.5200</td>
+          <td class="negative">$-45,900</td>
+          <td class="positive">+$219,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2026-05-11</td>
+          <td>2026-05-14</td>
+          <td>09:40</td>
+          <td>11:14</td>
+          <td>2026-05-15</td>
+          <td>$737.61</td>
+          <td>$748.04</td>
+          <td>738</td>
+          <td>728/738/738/748</td>
+          <td>$6.6600</td>
+          <td>$8.4000</td>
+          <td class="negative">$-17,400</td>
+          <td class="positive">+$202,100</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-05-18</td>
+          <td>2026-05-21</td>
+          <td>09:39</td>
+          <td>15:00</td>
+          <td>2026-05-22</td>
+          <td>$738.79</td>
+          <td>$741.16</td>
+          <td>739</td>
+          <td>729/739/739/749</td>
+          <td>$7.4900</td>
+          <td>$5.3800</td>
+          <td class="positive">+$21,100</td>
+          <td class="positive">+$223,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-06-01</td>
+          <td>2026-06-04</td>
+          <td>09:47</td>
+          <td>15:00</td>
+          <td>2026-06-05</td>
+          <td>$756.43</td>
+          <td>$757.80</td>
+          <td>756</td>
+          <td>746/756/756/766</td>
+          <td>$6.4200</td>
+          <td>$4.0900</td>
+          <td class="positive">+$23,300</td>
+          <td class="positive">+$246,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2026-06-22</td>
+          <td>2026-06-23</td>
+          <td>09:54</td>
+          <td>09:30</td>
+          <td>2026-06-26</td>
+          <td>$749.35</td>
+          <td>$732.70</td>
+          <td>749</td>
+          <td>739/749/749/759</td>
+          <td>$6.8800</td>
+          <td>$7.7600</td>
+          <td class="negative">$-8,800</td>
+          <td class="positive">+$237,700</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-07-06</td>
+          <td>2026-07-09</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2026-07-10</td>
+          <td>$748.59</td>
+          <td>$750.89</td>
+          <td>749</td>
+          <td>739/749/749/759</td>
+          <td>$5.9700</td>
+          <td>$4.2100</td>
+          <td class="positive">+$17,600</td>
+          <td class="positive">+$255,300</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-07-13</td>
+          <td>2026-07-16</td>
+          <td>09:44</td>
+          <td>15:00</td>
+          <td>2026-07-17</td>
+          <td>$752.73</td>
+          <td>$750.43</td>
+          <td>753</td>
+          <td>743/753/753/763</td>
+          <td>$6.1700</td>
+          <td>$4.4800</td>
+          <td class="positive">+$16,900</td>
+          <td class="positive">+$272,200</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-07-27</td>
+          <td>2026-07-29</td>
+          <td>09:53</td>
+          <td>10:42</td>
+          <td>2026-07-31</td>
+          <td>$743.69</td>
+          <td>$733.96</td>
+          <td>744</td>
+          <td>734/744/744/754</td>
+          <td>$7.2600</td>
+          <td>$5.8800</td>
+          <td class="positive">+$13,800</td>
+          <td class="positive">+$286,000</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-08-10</td>
+          <td>2026-08-13</td>
+          <td>09:58</td>
+          <td>15:00</td>
+          <td>2026-08-14</td>
+          <td>$773.34</td>
+          <td>$777.84</td>
+          <td>773</td>
+          <td>763/773/773/783</td>
+          <td>$5.9900</td>
+          <td>$5.4400</td>
+          <td class="positive">+$5,500</td>
+          <td class="positive">+$291,500</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="loss-row">
+          <td>2026-08-17</td>
+          <td>2026-08-20</td>
+          <td>09:55</td>
+          <td>09:30</td>
+          <td>2026-08-21</td>
+          <td>$775.83</td>
+          <td>$765.93</td>
+          <td>776</td>
+          <td>766/776/776/786</td>
+          <td>$5.3900</td>
+          <td>$7.6800</td>
+          <td class="negative">$-22,900</td>
+          <td class="positive">+$268,600</td>
+          <td>scheduled</td>
+        </tr>
+
+        <tr class="win-row">
+          <td>2026-08-24</td>
+          <td>2026-08-27</td>
+          <td>09:59</td>
+          <td>15:00</td>
+          <td>2026-08-28</td>
+          <td>$763.61</td>
+          <td>$769.85</td>
+          <td>764</td>
+          <td>754/764/764/774</td>
+          <td>$6.5800</td>
+          <td>$6.3000</td>
+          <td class="positive">+$2,800</td>
+          <td class="positive">+$271,400</td>
+          <td>scheduled</td>
+        </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>SPY Weekly Iron Butterfly Backtest (Dynamic) &bull; 2024-01-01 – 2026-08-30 &bull; Generated August 31, 2026</p>
+      <p>P&amp;L calculated using real OPRA options bar prices from Alpaca data API. Entry/exit timing derived from SPY 1-min underlying bars.</p>
+      <p style="font-size:0.78rem; margin-top:0.5rem;">
+        Past performance does not guarantee future results. Options trading involves significant risk of loss.
+      </p>
+    </footer>
+
+  </div>
+
+  <script>
+  (function() {
+    var data = [13000.0,31900.0,5400.0,26200.0,36000.0,50400.0,52700.0,21300.0,48000.0,49400.0,57200.0,44500.0,38400.0,46500.0,41200.0,40100.0,37800.0,59100.0,11400.0,33000.0,10300.0,-13200.0,-9400.0,-31600.0,-21300.0,-4200.0,-15000.0,-4000.0,13600.0,19900.0,46800.0,58200.0,28400.0,18800.0,31500.0,25100.0,56900.0,70200.0,91500.0,68000.0,47000.0,33300.0,33400.0,29200.0,34300.0,60800.0,130200.0,155300.0,151500.0,156500.0,164900.0,158400.0,129900.0,158600.0,160300.0,145000.0,150800.0,139500.0,133300.0,133400.0,105400.0,129900.0,135600.0,135500.0,160000.0,178700.0,177700.0,177200.0,154700.0,168600.0,184300.0,172800.0,155600.0,157200.0,167900.0,195100.0,219200.0,220900.0,239000.0,260000.0,277100.0,259600.0,243400.0,231800.0,253500.0,265400.0,219500.0,202100.0,223200.0,246500.0,237700.0,255300.0,272200.0,286000.0,291500.0,268600.0,271400.0];
+    var svg  = document.getElementById('equity-svg');
+    if (!svg || data.length < 2) return;
+    var W = 1000, H = 240, PAD = 20;
+    var minV = Math.min(0, Math.min.apply(null, data));
+    var maxV = Math.max(0, Math.max.apply(null, data));
+    var range = maxV - minV || 1;
+    function toX(i) { return PAD + (i / (data.length - 1)) * (W - PAD * 2); }
+    function toY(v) { return H - PAD - ((v - minV) / range) * (H - PAD * 2); }
+    var zeroY = toY(0);
+    var zline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    zline.setAttribute('x1', PAD); zline.setAttribute('x2', W - PAD);
+    zline.setAttribute('y1', zeroY); zline.setAttribute('y2', zeroY);
+    zline.setAttribute('stroke', 'rgba(255,255,255,0.15)');
+    zline.setAttribute('stroke-dasharray', '4,4');
+    svg.appendChild(zline);
+    var pts = data.map(function(v, i) { return toX(i) + ',' + toY(v); }).join(' ');
+    var fill = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    var fillPts = (PAD + ',' + (H - PAD)) + ' ' + pts + ' ' + ((W - PAD) + ',' + (H - PAD));
+    fill.setAttribute('points', fillPts);
+    fill.setAttribute('fill', data[data.length-1] >= 0 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)');
+    svg.appendChild(fill);
+    var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    poly.setAttribute('points', pts);
+    poly.setAttribute('fill', 'none');
+    poly.setAttribute('stroke', '#10b981');
+    poly.setAttribute('stroke-width', '2.5');
+    poly.setAttribute('stroke-linejoin', 'round');
+    poly.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(poly);
+    var lastX = toX(data.length - 1), lastY = toY(data[data.length - 1]);
+    var dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', lastX); dot.setAttribute('cy', lastY);
+    dot.setAttribute('r', '5');
+    dot.setAttribute('fill', '#10b981');
+    svg.appendChild(dot);
+    var lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    lbl.setAttribute('x', Math.min(lastX + 8, W - 90));
+    lbl.setAttribute('y', lastY + 4);
+    lbl.setAttribute('fill', '#10b981');
+    lbl.setAttribute('font-size', '13');
+    lbl.setAttribute('font-family', 'IBM Plex Mono, monospace');
+    lbl.setAttribute('font-weight', '600');
+    lbl.textContent = '+$271,400';
+    svg.appendChild(lbl);
+  })();
+  </script>
+
+  <script src="/js/site.js"></script>
+</body>
+</html>
