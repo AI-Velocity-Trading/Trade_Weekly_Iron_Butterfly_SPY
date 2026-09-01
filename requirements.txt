@@ -1,0 +1,14 @@
+# Streamlit & Data Visualization
+streamlit>=1.28.0
+pandas>=2.0.0
+numpy>=1.24.0
+plotly>=5.17.0
+
+# Data Processing
+python-dateutil>=2.8.2
+
+# Utilities
+tzdata>=2023.3
+
+# Optional: For additional functionality
+pytz>=2023.3
