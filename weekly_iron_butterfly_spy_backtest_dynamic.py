@@ -1498,14 +1498,11 @@ def main() -> None:
     trades = run_backtest(candidates, opt_daily, opt_1min)
     print_results(trades, all_trade_days)
 
-    _csv_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backtest-csv-files")
-    os.makedirs(_csv_dir, exist_ok=True)
-    csv_path = args.csv or os.path.join(_csv_dir, os.path.splitext(os.path.basename(__file__))[0] + ".csv")
+    _out_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = args.csv or os.path.join(_out_dir, os.path.splitext(os.path.basename(__file__))[0] + ".csv")
     export_csv(trades, csv_path)
 
-    _html_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backtest-html-reports")
-    os.makedirs(_html_dir, exist_ok=True)
-    html_path = os.path.join(_html_dir, "weekly-iron-butterfly-spy-backtest-dynamic.html")
+    html_path = os.path.join(_out_dir, "weekly-iron-butterfly-spy-backtest-dynamic.html")
     export_html(trades, html_path, all_trade_days)
 
 
