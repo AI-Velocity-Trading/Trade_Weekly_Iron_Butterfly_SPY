@@ -204,7 +204,7 @@ def load_backtest_data():
 def check_media_files():
     """Check if video and PDF files exist locally."""
     video_path = "Weekly_iron_butterfly_spy.mp4"
-    pdf_path = "Team-AI-Velocity-Trading.pdf"
+    pdf_path = "AI_Velocity_Alpaca_Hackathon_Presentation.pdf"
     return {
         "video": os.path.exists(video_path),
         "pdf": os.path.exists(pdf_path),
@@ -449,12 +449,12 @@ if media_files["video"] or media_files["pdf"]:
     with tab2:
         if media_files["pdf"]:
             st.markdown("### Strategy Presentation")
-            with open("Team-AI-Velocity-Trading.pdf", "rb") as f:
+            with open("AI_Velocity_Alpaca_Hackathon_Presentation.pdf", "rb") as f:
                 pdf_bytes = f.read()
             st.download_button(
                 label="📥 Download PDF Slides",
                 data=pdf_bytes,
-                file_name="Team-AI-Velocity-Trading.pdf",
+                file_name="AI_Velocity_Alpaca_Hackathon_Presentation.pdf",
                 mime="application/pdf",
             )
             st.markdown("""
