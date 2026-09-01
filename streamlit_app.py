@@ -389,36 +389,6 @@ def render_position_diagram():
     
     return fig
 
-def render_equity_curve(df):
-    """Render cumulative P&L from backtest."""
-    if df is None or "cum_pnl" not in df.columns:
-        return None
-    
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=list(range(len(df))),
-        y=df["cum_pnl"].values,
-        mode='lines',
-        name='Cumulative P&L',
-        line=dict(color='#00d9ff', width=2),
-        fill='tozeroy',
-        fillcolor='rgba(0, 217, 255, 0.1)',
-    ))
-    
-    fig.update_layout(
-        title="Backtest Cumulative P&L (Jan 2024 – Aug 2026)",
-        xaxis_title="Trade #",
-        yaxis_title="Cumulative P&L ($)",
-        template="plotly_dark",
-        height=400,
-        hovermode='x unified',
-        paper_bgcolor='rgba(26, 32, 53, 0.8)',
-        plot_bgcolor='rgba(10, 15, 31, 0.8)',
-        font=dict(color='#e8eef5'),
-    )
-    
-    return fig
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # MAIN APPLICATION
 # ═══════════════════════════════════════════════════════════════════════════════
