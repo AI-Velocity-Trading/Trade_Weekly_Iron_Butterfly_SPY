@@ -476,14 +476,14 @@ st.markdown("""
     📊 HISTORICAL VALIDATION
 </h3>
 <p style="color: #a8b2c5; margin-bottom: 20px;">
-Aug 2021 – Aug 2026 Backtest
+Jan 2024 – Aug 2026 Backtest · 100 contracts per leg
 </p>
 """, unsafe_allow_html=True)
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
 with col1:
-    st.metric("Historical P&L", "+$108,840")
+    st.metric("Historical P&L", "+$271,400")
 
 with col2:
     st.metric("Win Rate", "59.8%")
@@ -495,14 +495,14 @@ with col4:
     st.metric("Total Trades", "97")
 
 with col5:
-    st.metric("Max Drawdown", "-$36,280")
+    st.metric("Max Drawdown", "-$90,700")
 
 st.markdown("""
 <p style="color: #a8b2c5; font-size: 14px; margin-top: 15px;">
 <strong>Backtested results.</strong> Historical performance is not indicative of future results.
 </p>
 <p style="color: #a8b2c5; font-size: 12px;">
-5-year historical backtest using SPY 1-minute bars and Alpaca OPRA options pricing.
+Jan 2024 – Aug 2026 backtest at 100 contracts per leg, using SPY 1-minute bars and Alpaca OPRA options pricing. Parameters were tuned on the same period (in-sample); no commissions or slippage modelled.
 </p>
 """, unsafe_allow_html=True)
 
