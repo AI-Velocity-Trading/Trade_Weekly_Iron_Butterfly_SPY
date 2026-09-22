@@ -103,14 +103,12 @@ does not include OPRA access and will fail or return incomplete data.
 
 Backtest result over 2024-01-22 → 2026-08-24 at the traded size of 100
 contracts per leg (see `weekly_iron_butterfly_spy_backtest_dynamic.csv`):
-97 trades, 59.8% win rate, +$271,400 total P&L, Sharpe 1.06, max drawdown
-$90,700. Parameters were tuned on this same period, so these are in-sample
+97 trades, 60.8% win rate, +$303,600 total P&L, Sharpe 1.23, max drawdown
+$75,000. Parameters were tuned on this same period, so these are in-sample
 figures; no commissions or slippage are modelled. Earlier versions of this
 README quoted +$108,840 / $36,280 drawdown as a "5-year" result — that was the
-same 2024–2026 run at 40 contracts per leg, mislabelled. The checked-in CSV/HTML
-also predate the holiday-Thursday fix: in that run the 5 holiday-Thursday weeks
-were held to the Friday 15:00 bar (expiry day), including the single worst
-trade (2024-07-01, −$47,700). Re-run the backtest to regenerate them.
+same 2024–2026 run at 40 contracts per leg, mislabelled, and generated before
+the holiday-Thursday fix (five weeks were then held into Friday expiry).
 
 ## Live trading
 
