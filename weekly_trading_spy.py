@@ -10,7 +10,8 @@ Same 4-leg iron butterfly structure as the weekly_iron_butterfly_* family
   1. Trades ONLY a single account, configured via .env plus an interactive
      prompt at startup (no multi-account threading / no account lookup
      service of any kind).
-  2. Opens ONLY on Monday and closes ONLY on Thursday (weekly cadence),
+  2. Opens ONLY on Monday and closes ONLY on Thursday (weekly cadence;
+     Wednesday when Thursday is a market holiday — never into Friday expiry),
      using DYNAMIC entry/exit timing ported from the backtest's
      find_optimal_entry() / find_dynamic_exit_week() instead of a fixed
      09:40/15:45 clock schedule.
@@ -40,7 +41,8 @@ Exit (dynamic, Monday–Thursday):
   Continuously polls Alpaca's latest-trade price after entry (all week);
   exits immediately ("underlying_breach") once price moves BREACH_FRACTION *
   wingWidth away from the ATM strike. Falls back to a 15:40 ET Thursday
-  scheduled close if no breach occurs by then. Also auto-closes on:
+  scheduled close if no breach occurs by then (Wednesday if Thursday is a
+  market holiday — the position is never carried into Friday expiry). Also auto-closes on:
   - P&L ≥ +90% of max profit  (MAX_PROFIT_90%)
   - P&L ≤ -80% of max profit  (STOP_LOSS_80%)
 
@@ -125,7 +127,8 @@ TICKER     = "SPY"
 QTY        = 100
 WING_WIDTH = 10
 
-# ── Weekly schedule — OPEN Monday only, CLOSE Thursday only ──────────────────
+# ── Weekly schedule — OPEN Monday only, CLOSE Thursday (or the last trading ──
+#    day before a Thursday holiday; see week_close_day())
 OPEN_WEEKDAY  = 0      # Monday
 CLOSE_WEEKDAY = 3      # Thursday
 
@@ -632,6 +635,23 @@ def next_friday(ref: date | None = None) -> date:
                  candidate, candidate + timedelta(days=7))
         candidate += timedelta(days=7)
     return candidate
+
+def week_close_day(ref: date | None = None) -> date:
+    """
+    Scheduled close day for the week containing `ref`: the last trading day on
+    or before that week's Thursday (CLOSE_WEEKDAY). When Thursday is a market
+    holiday (Thanksgiving, 2026-01-01, …) this is Wednesday — the position is
+    never carried into Friday expiry. Falls back to plain Thursday if the
+    market calendar could not be loaded.
+    """
+    _load_market_holidays()
+    d = ref or datetime.now(ET).date()
+    monday = d - timedelta(days=d.weekday())
+    for offset in range(CLOSE_WEEKDAY, 0, -1):
+        cand = monday + timedelta(days=offset)
+        if cand not in _market_holidays:
+            return cand
+    return monday + timedelta(days=CLOSE_WEEKDAY)
 
 def now_et() -> datetime:
     return datetime.now(ET)
@@ -1821,7 +1841,8 @@ def run_scheduler():
     log.info("Strategy: SPY butterfly  qty=%d  wingWidth=%d", _ctx.qty, WING_WIDTH)
     log.info("ENTRY search window: Monday only %02d:%02d–%02d:%02d ET (dynamic, quietest-minute)",
              *ENTRY_SEARCH_START, *ENTRY_SEARCH_END)
-    log.info("EXIT: dynamic wing-breach (BREACH_FRACTION=%.2f) Mon–Thu, Thursday fallback %02d:%02d ET",
+    log.info("EXIT: dynamic wing-breach (BREACH_FRACTION=%.2f) Mon–Thu, Thursday fallback %02d:%02d ET "
+             "(Wednesday if Thursday is a market holiday)",
              BREACH_FRACTION, EXIT_DEFAULT_HOUR, EXIT_DEFAULT_MIN)
 
     last_open_date:    date | None = None
@@ -1831,6 +1852,8 @@ def run_scheduler():
     last_mv_log_ts:    float       = 0.0
     last_reset_week:   int | None = None
     last_heartbeat_ts: float       = 0.0
+    close_day:         date | None = None
+    close_day_for:     date | None = None
 
     while not _ctx.shutdown.is_set() and not _ctx.day_done.is_set():
         now       = now_et()
@@ -1838,6 +1861,16 @@ def run_scheduler():
         weekday   = now.weekday()
         hhmm_mins = now.hour * 60 + now.minute
         is_active_day = FORCE_TRADE_NOW or (0 <= weekday <= CLOSE_WEEKDAY)   # Mon–Thu only
+
+        # Resolve this week's scheduled close day once per calendar day.
+        if close_day_for != today:
+            close_day     = week_close_day(today)
+            close_day_for = today
+            if close_day.weekday() != CLOSE_WEEKDAY:
+                log.warning("Thursday %s is a market holiday — scheduled close moves to %s %s "
+                            "(never held into Friday expiry).",
+                            (close_day + timedelta(days=CLOSE_WEEKDAY - close_day.weekday())),
+                            close_day.strftime("%a"), close_day)
 
         open_start_mins  = ENTRY_SEARCH_START[1] + ENTRY_SEARCH_START[0] * 60
         open_cutoff_mins = ENTRY_SEARCH_END[0] * 60 + ENTRY_SEARCH_END[1]
@@ -1850,7 +1883,7 @@ def run_scheduler():
 
         if is_active_day:
             is_open_day  = FORCE_TRADE_NOW or weekday == OPEN_WEEKDAY
-            is_close_day = FORCE_TRADE_NOW or weekday == CLOSE_WEEKDAY
+            is_close_day = FORCE_TRADE_NOW or today == close_day
 
             in_open_window = is_open_day and (
                 FORCE_TRADE_NOW or (open_start_mins <= hhmm_mins < open_cutoff_mins)

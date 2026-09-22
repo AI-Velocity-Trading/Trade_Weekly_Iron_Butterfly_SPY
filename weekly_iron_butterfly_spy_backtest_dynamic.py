@@ -24,6 +24,8 @@ Timing logic (driven purely by SPY.csv price bars, no option data needed):
     Wednesday, through Thursday at EXIT_DEFAULT_HOUR:MIN (3:40 PM ET) at the
     LATEST — the week is always closed out by then, matching the user's
     "starts Monday, ends Thursday at 3:40 pm at the latest" requirement.
+    If Thursday is a market holiday the cutoff moves to Wednesday; a week is
+    never carried into Friday expiry.
     If SPY's high/low ever moves further than BREACH_FRACTION * WING_WIDTH
     away from the ATM strike, exits immediately at that minute
     ("underlying_breach"). Otherwise falls back to the last available bar
@@ -171,6 +173,7 @@ ENTRY_SEARCH_END   = (10, 0)    # optimizer found narrower/earlier beats 10:30 (
 ENTRY_SETTLE_WINDOW_MIN = 5     # optimizer found 5min beats 20min (5yr sweep, 2026-08-26)
 # Exit: hard cutoff — the week is always closed by Thursday at this ET time,
 # at the latest (per the "starts Monday, ends Thursday 3:40 pm" requirement).
+# If Thursday is a market holiday the cutoff is Wednesday — never Friday expiry.
 EXIT_DEFAULT_HOUR, EXIT_DEFAULT_MIN = 15, 0   # optimizer found 15:00 beats 15:40 (5yr sweep, 2026-08-26)
 # Exit early ("underlying_breach") once price moves this fraction of WING_WIDTH away from ATM.
 BREACH_FRACTION = 1.0
@@ -311,21 +314,22 @@ def find_dynamic_exit_week(
     week_bars: list[tuple[date, tuple[int, int], dict]],
     entry_date: date,
     entry_time: tuple[int, int],
-    thursday: date,
+    close_day: date,
     atm: float,
     breach_fraction: float = BREACH_FRACTION,
     exit_cutoff: tuple[int, int] = (EXIT_DEFAULT_HOUR, EXIT_DEFAULT_MIN),
 ) -> tuple[date, tuple[int, int], dict, str]:
     """
     Scans forward from (entry_date, entry_time) across the rest of the week,
-    hard-stopping at (thursday, exit_cutoff) — the week is never held past
-    that Thursday ET time. Exits immediately the first minute SPY's
-    high/low moves further than breach_fraction * WING_WIDTH away from ATM
-    ("underlying_breach"); otherwise falls back to the last bar at/before the
-    Thursday cutoff ("scheduled").
+    hard-stopping at (close_day, exit_cutoff) — close_day is Thursday, or the
+    last trading day before it when Thursday is a market holiday; the week is
+    never held past that ET time and never into Friday expiry. Exits
+    immediately the first minute SPY's high/low moves further than
+    breach_fraction * WING_WIDTH away from ATM ("underlying_breach");
+    otherwise falls back to the last bar at/before the cutoff ("scheduled").
     """
     breach_dist = breach_fraction * WING_WIDTH
-    cutoff = (thursday, exit_cutoff)
+    cutoff = (close_day, exit_cutoff)
     fallback: tuple[date, tuple[int, int], dict] | None = None
 
     for d, t, b in week_bars:
@@ -522,18 +526,23 @@ def collect_candidates(
     sym_list: list[str] = []
 
     for monday in mondays:
-        # Thursday = 3rd trading day after Monday, advanced past holidays.
-        thursday = None
-        for offset in range(7):
-            cand_date = monday + timedelta(days=3 + offset)
+        # Close day = the last trading day on or before this week's Thursday.
+        # When Thursday is a market holiday (Thanksgiving, 2024-07-04,
+        # 2025-06-19, 2025-12-25, 2026-01-01, …) that is Wednesday. The week is
+        # never carried into Friday expiry — that would add the pin/assignment
+        # risk the strategy exists to avoid, and it is not what the live trader
+        # does.
+        close_day = None
+        for offset in range(3, 0, -1):
+            cand_date = monday + timedelta(days=offset)
             if cand_date in trade_day_set:
-                thursday = cand_date
+                close_day = cand_date
                 break
-        if thursday is None:
+        if close_day is None:
             continue
 
-        week_days = [monday] + [d for d in all_trade_days if monday < d <= thursday]
-        if not week_days or week_days[-1] != thursday:
+        week_days = [monday] + [d for d in all_trade_days if monday < d <= close_day]
+        if not week_days or week_days[-1] != close_day:
             continue
 
         monday_bars = underlying_bars.get(monday)
@@ -562,7 +571,7 @@ def collect_candidates(
                 sym_list.append(sym)
                 sym_set.add(sym)
 
-        # Flatten Monday→Thursday 1-min bars into one chronological list for the exit scan.
+        # Flatten Monday→close-day 1-min bars into one chronological list for the exit scan.
         # Restricted to regular trading hours (9:30-16:00 ET) so thin pre/post-market
         # bars on Tue/Wed/Thu don't trigger spurious "underlying_breach" wicks.
         week_bars: list[tuple[date, tuple[int, int], dict]] = []
@@ -600,7 +609,7 @@ def collect_candidates(
 
         candidates.append({
             "monday":               monday,
-            "thursday":             thursday,
+            "close_day":            close_day,
             "week_bars":            week_bars,
             "expiry":               expiry,
             "spy_open":             spy_price,
@@ -619,7 +628,7 @@ def collect_candidates(
     log.info("Pass 1 complete: %d candidates, %d unique option symbols",
              len(candidates), len(sym_list))
 
-    fetch_end = BT_END + timedelta(days=7)  # safety margin: Thursday exits can land after BT_END
+    fetch_end = BT_END + timedelta(days=7)  # safety margin: close-day exits can land after BT_END
     log.info("Pass 2: fetching daily options bars for %d unique symbols …", len(sym_list))
     opt_daily = fetch_options_bars_batch_daily(sym_list, BT_START - timedelta(days=3), fetch_end)
 
@@ -649,7 +658,7 @@ def apply_filters(candidates: list[dict], opt_daily: dict, opt_1min: dict, param
     equity = 0.0
 
     for cand in candidates:
-        monday, thursday = cand["monday"], cand["thursday"]
+        monday, close_day = cand["monday"], cand["close_day"]
 
         # ── Pre-filters (SPY price only, no option data needed) ─────────────
         if (params["max_prior_range_pct"] is not None
@@ -663,7 +672,7 @@ def apply_filters(candidates: list[dict], opt_daily: dict, opt_1min: dict, param
         # ─────────────────────────────────────────────────────────────────────
 
         exit_date, exit_time, exit_bar, underlying_exit_reason = find_dynamic_exit_week(
-            cand["week_bars"], monday, cand["entry_time"], thursday, cand["atm"],
+            cand["week_bars"], monday, cand["entry_time"], close_day, cand["atm"],
             params["breach_fraction"], params.get("exit_cutoff", (EXIT_DEFAULT_HOUR, EXIT_DEFAULT_MIN)),
         )
         exit_hour, exit_min = exit_time

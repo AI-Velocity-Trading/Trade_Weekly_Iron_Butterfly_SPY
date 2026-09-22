@@ -23,7 +23,10 @@ Instead of trading on a fixed clock schedule, entry and exit timing are
 - **Exit** (Monday–Thursday): closes immediately if price ever moves
   `BREACH_FRACTION × WING_WIDTH` away from the ATM strike ("underlying
   breach"), or at a profit target (+90% of max profit) / stop loss (−80%),
-  otherwise falls back to a scheduled close by Thursday 15:00 ET.
+  otherwise falls back to a scheduled close by Thursday 15:00 ET. If Thursday
+  is a market holiday (Thanksgiving, Juneteenth, etc.) the scheduled close
+  moves to Wednesday — a week is never carried into Friday expiry. Both
+  scripts apply this rule.
 
 Trade filters can skip a week entirely (e.g. Monday gap too large, prior-week
 range too wide, credit too rich) — current defaults were tuned via a 5-year
@@ -104,7 +107,10 @@ contracts per leg (see `weekly_iron_butterfly_spy_backtest_dynamic.csv`):
 $90,700. Parameters were tuned on this same period, so these are in-sample
 figures; no commissions or slippage are modelled. Earlier versions of this
 README quoted +$108,840 / $36,280 drawdown as a "5-year" result — that was the
-same 2024–2026 run at 40 contracts per leg, mislabelled.
+same 2024–2026 run at 40 contracts per leg, mislabelled. The checked-in CSV/HTML
+also predate the holiday-Thursday fix: in that run the 5 holiday-Thursday weeks
+were held to the Friday 15:00 bar (expiry day), including the single worst
+trade (2024-07-01, −$47,700). Re-run the backtest to regenerate them.
 
 ## Live trading
 
