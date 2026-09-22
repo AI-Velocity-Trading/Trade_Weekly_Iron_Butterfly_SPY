@@ -98,8 +98,13 @@ does not include OPRA access and will fail or return incomplete data.
 - Gap filter: skip if Monday open gaps > 0.8% from prior close
 - Credit and prior-range filters: disabled
 
-Backtest result over 2021-08-26 → 2026-08-25: 97 trades, 59.8% win rate,
-+$108,840 total P&L, Sharpe 1.06, max drawdown $36,280.
+Backtest result over 2024-01-22 → 2026-08-24 at the traded size of 100
+contracts per leg (see `weekly_iron_butterfly_spy_backtest_dynamic.csv`):
+97 trades, 59.8% win rate, +$271,400 total P&L, Sharpe 1.06, max drawdown
+$90,700. Parameters were tuned on this same period, so these are in-sample
+figures; no commissions or slippage are modelled. Earlier versions of this
+README quoted +$108,840 / $36,280 drawdown as a "5-year" result — that was the
+same 2024–2026 run at 40 contracts per leg, mislabelled.
 
 ## Live trading
 
